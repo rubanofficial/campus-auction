@@ -41,6 +41,10 @@ const sessionStore = new PgSessionStore({
   pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 minutes
 });
 
+sessionStore.on('error', (err) => {
+  console.warn('[Session] Session store warning:', err.message);
+});
+
 // Secure server-side sessions
 app.use(
   session({

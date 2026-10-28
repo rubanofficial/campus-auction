@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useLocation } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Clock,
   ShieldCheck,
@@ -19,9 +19,12 @@ import {
   Calendar,
   ChevronRight,
   Loader2,
+  Lock,
+  UserCheck,
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
+import { useAuth } from '../context/AuthContext';
 
 // Category fallback icon mapping
 const getCategoryIcon = (category) => {
@@ -86,6 +89,8 @@ const calculateTimeLeft = (endsAt) => {
 export default function AuctionDetails() {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
   const [auction, setAuction] = useState(null);
@@ -96,6 +101,12 @@ export default function AuctionDetails() {
   const [imageError, setImageError] = useState(false);
   const [timeLeft, setTimeLeft] = useState({ hours: '00', minutes: '00', seconds: '00', isEnded: false });
   const [successBanner, setSuccessBanner] = useState(location.state?.successMessage || null);
+
+  // Interactive Bidding Form State
+  const [bidAmount, setBidAmount] = useState('');
+  const [isPlacingBid, setIsPlacingBid] = useState(false);
+  const [bidError, setBidError] = useState(null);
+  const [bidSuccess, setBidSuccess] = useState(null);
 
   // Fetch auction details and bid history
   useEffect(() => {
@@ -161,6 +172,18 @@ export default function AuctionDetails() {
     return () => clearInterval(timer);
   }, [auction?.endsAt]);
 
+  // Synchronize bid input with minimum next acceptable bid
+  useEffect(() => {
+    if (auction) {
+      const curPrice = auction.currentPrice || auction.startingPrice || 0;
+      const startPrice = auction.startingPrice || 0;
+      const minInc = auction.minBidIncrement || 50;
+      const count = auction.bidCount || 0;
+      const calculatedMinNext = count > 0 ? curPrice + minInc : startPrice;
+      setBidAmount(String(calculatedMinNext));
+    }
+  }, [auction?.id, auction?.currentPrice, auction?.bidCount, auction?.startingPrice, auction?.minBidIncrement]);
+
   // Loading State
   if (isLoading) {
     return (
@@ -197,13 +220,17 @@ export default function AuctionDetails() {
     );
   }
 
-  // Formatted data items
+  // Formatted data items & bidding eligibility
   const gallery = Array.isArray(auction.images) && auction.images.length > 0 ? auction.images : [];
   const currentPrice = auction.currentPrice || auction.startingPrice || 0;
   const startingPrice = auction.startingPrice || 0;
   const minIncrement = auction.minBidIncrement || 50;
   const bidCount = auction.bidCount || 0;
   const minNextBid = bidCount > 0 ? currentPrice + minIncrement : startingPrice;
+  const isSeller = Boolean(user?.id && (user.id === auction.sellerId || user.id === auction.seller_id));
+  const isEnded = Boolean(auction.endsAt && (new Date(auction.endsAt).getTime() <= Date.now() || timeLeft.isEnded));
+  const isClosed = Boolean(auction.status !== 'active' || auction.outcome !== null || isEnded);
+  const isUserLeading = Boolean(user?.id && (auction.currentLeaderId === user.id || auction.current_leader_id === user.id));
   const FallbackIcon = getCategoryIcon(auction.category);
 
   const formattedClosingDate = auction.endsAt
@@ -212,6 +239,101 @@ export default function AuctionDetails() {
       timeStyle: 'short',
     })
     : 'Closing soon';
+
+  // Handle bid form submission
+  const handleBidSubmit = async (e) => {
+    e.preventDefault();
+    setBidError(null);
+    setBidSuccess(null);
+
+    // 1. Enforce authentication
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: location } });
+      return;
+    }
+
+    // 2. Reject bids from listing seller
+    if (isSeller) {
+      setBidError('Sellers are not permitted to bid on their own listings.');
+      return;
+    }
+
+    // 3. Reject bids on ended or inactive auctions
+    if (isClosed) {
+      setBidError('This auction has ended and is closed for bidding.');
+      return;
+    }
+
+    // 4. Validate bid amount
+    const parsedAmount = parseInt(bidAmount, 10);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      setBidError('Please enter a valid positive whole-rupee bid amount.');
+      return;
+    }
+
+    if (parsedAmount < minNextBid) {
+      setBidError(`Bid amount must be at least ₹${minNextBid.toLocaleString('en-IN')}.`);
+      return;
+    }
+
+    setIsPlacingBid(true);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/auctions/${id}/bids`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ amount: parsedAmount }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setBidError(data.message || data.error || 'Failed to place bid. Please try again.');
+        setIsPlacingBid(false);
+        return;
+      }
+
+      // Successful bid placement
+      setBidSuccess(`Your bid of ₹${parsedAmount.toLocaleString('en-IN')} was placed successfully! You are now the leading bidder.`);
+
+      // Update local auction state immediately
+      if (data.auction) {
+        setAuction((prev) => ({
+          ...prev,
+          currentPrice: data.auction.currentPrice,
+          bidCount: data.auction.bidCount,
+          currentLeaderId: data.auction.currentLeaderId,
+          currentLeaderName: data.auction.currentLeaderName,
+        }));
+      }
+
+      // Re-fetch bids to update bid history with real server records
+      try {
+        const bidsRes = await fetch(`${apiBaseUrl}/api/auctions/${id}/bids`, {
+          credentials: 'include',
+        });
+        if (bidsRes.ok) {
+          const bidsData = await bidsRes.json();
+          if (Array.isArray(bidsData.bids)) {
+            setBids(bidsData.bids);
+          }
+        } else if (data.bid) {
+          setBids((prev) => [data.bid, ...prev]);
+        }
+      } catch {
+        if (data.bid) {
+          setBids((prev) => [data.bid, ...prev]);
+        }
+      }
+    } catch (networkError) {
+      setBidError('Unable to connect to campus auction server. Please check your connection and try again.');
+    } finally {
+      setIsPlacingBid(false);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -437,8 +559,13 @@ export default function AuctionDetails() {
                 </div>
                 {auction.currentLeaderName && (
                   <p className="text-xs text-emerald-700 font-medium mt-1 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                     Leading bidder: <span className="font-bold">{auction.currentLeaderName}</span>
+                    {isUserLeading && (
+                      <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        (You)
+                      </span>
+                    )}
                   </p>
                 )}
               </div>
@@ -465,44 +592,153 @@ export default function AuctionDetails() {
               </div>
             </div>
 
-            {/* 3. Bid Form UI (Layout preserved; backend placeBid API ready) */}
+            {/* 3. Bid Form UI */}
             <div className="pt-4 border-t border-slate-100 space-y-3">
-              <label htmlFor="bidInput" className="block text-xs font-bold text-slate-700">
-                Place Your Bid (₹)
-              </label>
-
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">
-                    ₹
-                  </span>
-                  <input
-                    id="bidInput"
-                    type="number"
-                    defaultValue={minNextBid}
-                    disabled
-                    readOnly
-                    className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 text-sm font-bold cursor-not-allowed"
-                  />
+              {!isAuthenticated ? (
+                /* Unauthenticated Visitor State */
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
+                  <div className="flex items-start gap-2.5">
+                    <Lock className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <h3 className="text-xs font-bold text-slate-800">Sign in to place a bid</h3>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        You must be signed in with a campus student account to participate in this auction.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    as={Link}
+                    to="/login"
+                    state={{ from: location }}
+                    variant="primary"
+                    className="w-full justify-center text-xs font-bold"
+                  >
+                    Sign In to Place Bid
+                  </Button>
+                  <p className="text-[11px] text-center text-slate-400">
+                    Don't have an account?{' '}
+                    <Link to="/register" className="font-semibold text-indigo-600 hover:underline">
+                      Register with student email
+                    </Link>
+                  </p>
                 </div>
-                <Button variant="primary" disabled className="px-5">
-                  Place Bid
-                </Button>
-              </div>
+              ) : isSeller ? (
+                /* Seller State */
+                <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="text-xs font-bold text-amber-900">Seller Listing Notice</h3>
+                      <p className="text-xs text-amber-700 leading-relaxed mt-0.5">
+                        You are the seller of this auction listing. To maintain auction fairness and marketplace integrity, sellers cannot place bids on their own listings.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-1">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 bg-amber-100/70 px-2.5 py-1 rounded-lg">
+                      <UserCheck className="w-3.5 h-3.5" />
+                      Seller Account (Read Only)
+                    </span>
+                  </div>
+                </div>
+              ) : isClosed ? (
+                /* Closed Auction State */
+                <div className="p-4 rounded-xl bg-slate-100 border border-slate-200 text-center space-y-2">
+                  <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-slate-200 text-slate-600 mx-auto">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-xs font-bold text-slate-800">Bidding Is Closed</h3>
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                    This auction has ended and is no longer accepting new bids.
+                  </p>
+                </div>
+              ) : (
+                /* Active Bid Placement Form for Eligible Student */
+                <form onSubmit={handleBidSubmit} className="space-y-3">
+                  <label htmlFor="bidInput" className="block text-xs font-bold text-slate-700">
+                    Place Your Bid (₹)
+                  </label>
 
-              {/* Minimum Acceptable Bid Hint */}
-              <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
-                Minimum acceptable bid is ₹{minNextBid.toLocaleString('en-IN')}
-              </p>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">
+                        ₹
+                      </span>
+                      <input
+                        id="bidInput"
+                        type="number"
+                        step="1"
+                        min={minNextBid}
+                        value={bidAmount}
+                        onChange={(e) => {
+                          setBidAmount(e.target.value);
+                          if (bidError) setBidError(null);
+                        }}
+                        disabled={isPlacingBid}
+                        placeholder={String(minNextBid)}
+                        className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 text-sm font-bold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-slate-50 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={isPlacingBid || !bidAmount}
+                      className="px-5 shrink-0"
+                    >
+                      {isPlacingBid ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                          Placing...
+                        </>
+                      ) : (
+                        'Place Bid'
+                      )}
+                    </Button>
+                  </div>
 
-              {/* Informational message */}
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-2 text-xs text-slate-500">
-                <AlertCircle className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                <span>
-                  Interactive client-side bidding form will be wired in the upcoming step. The backend API is active at <code className="bg-slate-200/70 px-1 py-0.5 rounded text-[11px]">POST /api/auctions/:id/bids</code>.
-                </span>
-              </div>
+                  {/* Minimum Acceptable Bid Hint */}
+                  <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                    Minimum acceptable bid is ₹{minNextBid.toLocaleString('en-IN')}
+                  </p>
+
+                  {/* Quick Increment Buttons */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="text-[11px] text-slate-400 font-medium">Quick add:</span>
+                    {[50, 100, 250].map((inc) => (
+                      <button
+                        key={inc}
+                        type="button"
+                        onClick={() => {
+                          const currentVal = parseInt(bidAmount, 10) || minNextBid;
+                          setBidAmount(String(currentVal + inc));
+                          if (bidError) setBidError(null);
+                        }}
+                        disabled={isPlacingBid}
+                        className="text-[11px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        +₹{inc}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Error Alert Banner */}
+                  {bidError && (
+                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2 text-xs animate-in fade-in duration-150">
+                      <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                      <p className="font-semibold leading-relaxed">{bidError}</p>
+                    </div>
+                  )}
+
+                  {/* Success Alert Banner */}
+                  {bidSuccess && (
+                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-start gap-2 text-xs animate-in fade-in duration-150">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <p className="font-semibold leading-relaxed">{bidSuccess}</p>
+                    </div>
+                  )}
+                </form>
+              )}
             </div>
           </div>
 
@@ -527,34 +763,45 @@ export default function AuctionDetails() {
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
-                {bids.map((bid, i) => (
-                  <div key={bid.id || i} className="py-2.5 flex items-center justify-between text-xs">
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-slate-800">{bid.bidderName || 'Student Bidder'}</span>
-                        {i === 0 && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                            Leading
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[11px] text-slate-400">
-                        {bid.createdAt
-                          ? new Date(bid.createdAt).toLocaleString('en-IN', {
-                            dateStyle: 'medium',
-                            timeStyle: 'short',
-                          })
-                          : 'Recently'}
-                      </span>
-                    </div>
+                {bids.map((bid, i) => {
+                  const bidderDisplayName = bid.bidderName || bid.bidder_name || 'Student Bidder';
+                  const isUserBid = user?.id && (bid.bidderId === user.id || bid.bidder_id === user.id);
+                  const bidTime = bid.createdAt || bid.created_at;
 
-                    <div className="text-right">
-                      <span className="font-bold text-slate-900">
-                        ₹{bid.amount.toLocaleString('en-IN')}
-                      </span>
+                  return (
+                    <div key={bid.id || i} className="py-2.5 flex items-center justify-between text-xs">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-slate-800">{bidderDisplayName}</span>
+                          {isUserBid && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                              You
+                            </span>
+                          )}
+                          {i === 0 && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                              Leading
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-slate-400">
+                          {bidTime
+                            ? new Date(bidTime).toLocaleString('en-IN', {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })
+                            : 'Recently'}
+                        </span>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="font-bold text-slate-900">
+                          ₹{Number(bid.amount).toLocaleString('en-IN')}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
