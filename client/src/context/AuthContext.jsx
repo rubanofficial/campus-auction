@@ -8,6 +8,29 @@ export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+
+  /**
+   * Fetch unread notification count for the authenticated user
+   */
+  const refreshUnreadCount = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/notifications`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUnreadNotificationsCount(data.unreadCount || 0);
+      }
+    } catch {
+      // Ignore background network errors
+    }
+  }, []);
 
   /**
    * Check current session on mount and restore authentication state
@@ -51,6 +74,15 @@ export function AuthProvider({ children }) {
     checkAuth();
   }, [checkAuth]);
 
+  // Synchronize unread notifications count when user session changes
+  useEffect(() => {
+    if (isAuthenticated) {
+      refreshUnreadCount();
+    } else {
+      setUnreadNotificationsCount(0);
+    }
+  }, [isAuthenticated, refreshUnreadCount]);
+
   /**
    * Real student login calling backend POST /api/auth/login
    */
@@ -77,6 +109,7 @@ export function AuthProvider({ children }) {
         ...data.user,
         name: data.user.displayName,
       });
+      refreshUnreadCount();
     } else {
       await checkAuth();
     }
@@ -101,6 +134,7 @@ export function AuthProvider({ children }) {
     } finally {
       setIsAuthenticated(false);
       setUser(null);
+      setUnreadNotificationsCount(0);
     }
   };
 
@@ -110,6 +144,9 @@ export function AuthProvider({ children }) {
         isAuthenticated,
         user,
         isLoading,
+        unreadNotificationsCount,
+        setUnreadNotificationsCount,
+        refreshUnreadCount,
         login,
         logout,
         checkAuth,

@@ -1,4 +1,5 @@
 import { query } from '../config/database.js';
+import { createNewAuctionNotifications } from './notification.controller.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -294,6 +295,25 @@ export const createAuction = async (req, res) => {
 
     const result = await query(insertQuery, values);
     const createdAuction = result.rows[0];
+
+    // Trigger persistent in-app notifications for all registered, active students (excluding seller)
+    // Only generate notifications when listing is active and published
+    if (createdAuction && createdAuction.status === 'active') {
+      try {
+        await createNewAuctionNotifications({
+          auctionId: createdAuction.id,
+          title: createdAuction.title,
+          sellerId: createdAuction.seller_id,
+          startingPrice: createdAuction.starting_price,
+        });
+      } catch (notificationError) {
+        console.error(
+          `[Notification] Failed to create notifications for auction ${createdAuction.id}:`,
+          notificationError.message
+        );
+        // Do not fail auction creation if notification creation encounters an issue
+      }
+    }
 
     return res.status(201).json({
       message: 'Auction created successfully.',

@@ -16,7 +16,7 @@ import Button from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
 
 export default function Navbar({ isSidebarOpen, onToggleSidebar }) {
-  const { user, logout } = useAuth();
+  const { user, logout, unreadNotificationsCount } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -99,8 +99,12 @@ export default function Navbar({ isSidebarOpen, onToggleSidebar }) {
               aria-label="View notifications"
             >
               <Bell className="w-5 h-5" />
-              {/* Notification badge indicator */}
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-indigo-600 ring-2 ring-white" />
+              {/* Dynamic notification badge indicator */}
+              {unreadNotificationsCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-extrabold flex items-center justify-center ring-2 ring-white shadow-xs">
+                  {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                </span>
+              )}
             </Link>
 
             {/* Profile Avatar */}
