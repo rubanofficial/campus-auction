@@ -40,6 +40,7 @@ const formatAuction = (row, sellerName = null, leaderName = null) => {
     endsAt: row.ends_at,
     status: row.status,
     outcome: row.outcome,
+    decisionAt: row.decision_at || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     // Provide snake_case fields as well for consistency
@@ -48,6 +49,7 @@ const formatAuction = (row, sellerName = null, leaderName = null) => {
     min_bid_increment: row.min_bid_increment,
     current_price: row.current_price,
     current_leader_id: row.current_leader_id,
+    decision_at: row.decision_at || null,
     bid_count: row.bid_count,
     starts_at: row.starts_at,
     ends_at: row.ends_at,
@@ -374,6 +376,7 @@ export const getAuctionById = async (req, res) => {
         a.ends_at,
         a.status,
         a.outcome,
+        a.decision_at,
         a.created_at,
         a.updated_at
       FROM auctions a
@@ -609,6 +612,7 @@ export const getAuctions = async (req, res) => {
         a.ends_at,
         a.status,
         a.outcome,
+        a.decision_at,
         a.created_at,
         a.updated_at
       FROM auctions a

@@ -62,9 +62,11 @@ export const getUserActivity = async (req, res) => {
          a.description,
          a.starting_price,
          a.current_price,
+         a.current_leader_id,
          a.bid_count,
          a.status,
          a.outcome,
+         a.decision_at,
          a.starts_at,
          a.ends_at,
          a.images,
@@ -112,7 +114,7 @@ export const getUserActivity = async (req, res) => {
       [userId]
     );
 
-    // 3. Query auctions won by the student (closed auctions where student holds highest bid)
+    // 3. Query auctions won by the student (closed auctions where student holds highest bid and outcome is accepted/sold/awaiting decision)
     const wonPromise = query(
       `SELECT
          a.id,
@@ -133,12 +135,12 @@ export const getUserActivity = async (req, res) => {
        JOIN users u ON a.seller_id = u.id
        WHERE a.current_leader_id = $1
          AND (a.status = 'ended' OR (a.status = 'active' AND a.ends_at <= CURRENT_TIMESTAMP))
-         AND (a.outcome IS NULL OR a.outcome = 'sold' OR a.outcome = 'pending')
+         AND (a.outcome IS NULL OR a.outcome = 'sold' OR a.outcome = 'accepted')
        ORDER BY a.ends_at DESC`,
       [userId]
     );
 
-    // 4. Query completed sales created by the student
+    // 4. Query completed sales created by the student (only genuinely completed handover)
     const salesPromise = query(
       `SELECT
          a.id,
@@ -176,22 +178,30 @@ export const getUserActivity = async (req, res) => {
       const endsAtDate = new Date(row.ends_at);
       const isTimeEnded = endsAtDate <= now;
       const isCurrentlyActive = row.status === 'active' && !isTimeEnded;
+      const hasEnded = isTimeEnded || row.status === 'ended';
+      const canDecide = hasEnded && Number(row.bid_count) > 0 && Boolean(row.current_leader_id) && row.outcome === null;
 
       if (isCurrentlyActive) {
         activeListingsCount++;
       }
 
       let displayStatus = 'Active';
-      if (row.status === 'active') {
-        if (isTimeEnded) {
-          displayStatus = row.bid_count > 0 ? 'Awaiting Seller Approval' : 'Unsold';
-        } else {
-          displayStatus = 'Active';
-        }
-      } else if (row.status === 'ended') {
-        displayStatus = row.outcome === 'sold' ? 'Sold' : 'Unsold';
-      } else if (row.status === 'cancelled') {
+      if (row.status === 'cancelled') {
         displayStatus = 'Cancelled';
+      } else if (isCurrentlyActive) {
+        displayStatus = 'Active';
+      } else if (row.outcome === 'accepted') {
+        displayStatus = 'Reserved';
+      } else if (row.outcome === 'rejected') {
+        displayStatus = 'Rejected';
+      } else if (row.outcome === 'sold') {
+        displayStatus = 'Sold';
+      } else if (row.outcome === 'unsold') {
+        displayStatus = 'Unsold';
+      } else if (canDecide) {
+        displayStatus = 'Awaiting Seller Decision';
+      } else if (hasEnded) {
+        displayStatus = Number(row.bid_count) > 0 ? 'Awaiting Seller Decision' : 'Unsold';
       }
 
       const images = Array.isArray(row.images) ? row.images : [];
@@ -204,12 +214,17 @@ export const getUserActivity = async (req, res) => {
         currentPrice: Number(row.current_price),
         startingPrice: Number(row.starting_price),
         totalBids: Number(row.bid_count),
+        leaderName: row.leader_name || null,
+        currentLeaderId: row.current_leader_id || null,
+        outcome: row.outcome || null,
+        decisionAt: row.decision_at || null,
+        canDecide,
         closingLabel: isCurrentlyActive ? formatTimeRemaining(row.ends_at) : null,
-        closedAt: isTimeEnded ? `Closed on ${formatDate(row.ends_at)}` : null,
+        closedAt: hasEnded ? `Closed on ${formatDate(row.ends_at)}` : null,
         status: displayStatus,
         imageUrl,
         pickupSpot: 'Campus Pickup',
-        actionText: 'View Auction',
+        actionText: canDecide ? 'Review Decision' : 'View Auction',
         actionHref: `/auctions/${row.id}`,
       };
     });
@@ -220,6 +235,7 @@ export const getUserActivity = async (req, res) => {
       const endsAtDate = new Date(row.ends_at);
       const isTimeEnded = endsAtDate <= now;
       const isCurrentlyActive = row.status === 'active' && !isTimeEnded;
+      const hasEnded = isTimeEnded || row.status === 'ended';
       const isLeading = row.current_leader_id === userId;
 
       if (isCurrentlyActive) {
@@ -229,8 +245,20 @@ export const getUserActivity = async (req, res) => {
       let displayStatus = 'Outbid';
       if (isCurrentlyActive) {
         displayStatus = isLeading ? 'Leading' : 'Outbid';
-      } else {
-        displayStatus = isLeading ? 'Won' : 'Outbid';
+      } else if (hasEnded) {
+        if (isLeading) {
+          if (row.outcome === 'accepted') {
+            displayStatus = 'Won';
+          } else if (row.outcome === 'sold') {
+            displayStatus = 'Won';
+          } else if (row.outcome === 'rejected') {
+            displayStatus = 'Declined';
+          } else {
+            displayStatus = 'Awaiting Decision';
+          }
+        } else {
+          displayStatus = 'Outbid';
+        }
       }
 
       const images = Array.isArray(row.images) ? row.images : [];
@@ -244,7 +272,7 @@ export const getUserActivity = async (req, res) => {
         currentPrice: Number(row.current_price),
         totalBids: Number(row.bid_count),
         closingLabel: isCurrentlyActive ? formatTimeRemaining(row.ends_at) : null,
-        closedAt: isTimeEnded ? `Closed on ${formatDate(row.ends_at)}` : null,
+        closedAt: hasEnded ? `Closed on ${formatDate(row.ends_at)}` : null,
         status: displayStatus,
         imageUrl,
         pickupSpot: 'Campus Pickup',
@@ -256,13 +284,23 @@ export const getUserActivity = async (req, res) => {
     // Format Won Auctions
     let auctionsWonCount = 0;
     const formattedWon = wonResult.rows.map((row) => {
-      // Won awaiting pickup/handover vs genuinely completed
       const isHandoverCompleted = row.outcome === 'sold';
-      if (!isHandoverCompleted) {
+      const isAccepted = row.outcome === 'accepted';
+      const isAwaitingDecision = row.outcome === null;
+
+      if (isAccepted) {
         auctionsWonCount++;
       }
 
-      const displayStatus = isHandoverCompleted ? 'Completed' : 'Reserved';
+      let displayStatus = 'Reserved';
+      if (isHandoverCompleted) {
+        displayStatus = 'Completed';
+      } else if (isAccepted) {
+        displayStatus = 'Reserved';
+      } else if (isAwaitingDecision) {
+        displayStatus = 'Awaiting Seller Decision';
+      }
+
       const images = Array.isArray(row.images) ? row.images : [];
       const imageUrl = images.length > 0 ? images[0] : '';
 
@@ -280,7 +318,7 @@ export const getUserActivity = async (req, res) => {
       };
     });
 
-    // Format Completed Sales
+    // Format Completed Sales (Genuinely completed handover only)
     const formattedSales = salesResult.rows.map((row) => {
       const images = Array.isArray(row.images) ? row.images : [];
       const imageUrl = images.length > 0 ? images[0] : '';
@@ -320,4 +358,3 @@ export const getUserActivity = async (req, res) => {
     });
   }
 };
-

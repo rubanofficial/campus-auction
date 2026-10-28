@@ -24,6 +24,8 @@ import {
   Radio,
   Zap,
   X,
+  XCircle,
+  Trophy,
   Info,
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
@@ -123,6 +125,13 @@ export default function AuctionDetails() {
   const [isCancellingAutoBid, setIsCancellingAutoBid] = useState(false);
   const [autoBidError, setAutoBidError] = useState(null);
   const [autoBidSuccess, setAutoBidSuccess] = useState(null);
+
+  // Seller Decision State (Accept / Reject winning bid)
+  const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
+  const [decisionAction, setDecisionAction] = useState(null); // 'accept' | 'reject'
+  const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
+  const [decisionError, setDecisionError] = useState(null);
+  const [decisionSuccess, setDecisionSuccess] = useState(null);
 
   // Refresh user's own Auto Bid status
   const fetchAutoBidStatus = useCallback(async () => {
@@ -281,9 +290,16 @@ export default function AuctionDetails() {
       }
     };
 
+    // Handle real-time seller decision update
+    const onDecisionUpdated = (payload) => {
+      if (!payload || payload.auctionId !== id) return;
+      refreshAuctionData();
+    };
+
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('auction:bid-updated', onBidUpdated);
+    socket.on('auction:decision-updated', onDecisionUpdated);
 
     return () => {
       // Leave room and detach listeners when unmounting or switching auctions
@@ -291,6 +307,7 @@ export default function AuctionDetails() {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('auction:bid-updated', onBidUpdated);
+      socket.off('auction:decision-updated', onDecisionUpdated);
     };
   }, [id, refreshAuctionData, isAuthenticated, fetchAutoBidStatus]);
 
@@ -617,6 +634,49 @@ export default function AuctionDetails() {
     }
   };
 
+  // Open seller decision confirmation modal
+  const handleOpenDecisionModal = (action) => {
+    setDecisionAction(action);
+    setDecisionError(null);
+    setIsDecisionModalOpen(true);
+  };
+
+  // Handle seller confirmation of accept or reject winning bid
+  const handleConfirmDecision = async () => {
+    if (!decisionAction || !id) return;
+    setIsSubmittingDecision(true);
+    setDecisionError(null);
+    setDecisionSuccess(null);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/auctions/${id}/${decisionAction}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setDecisionError(data.message || data.error || `Failed to ${decisionAction} winning bid.`);
+        setIsSubmittingDecision(false);
+        return;
+      }
+
+      setDecisionSuccess(data.message);
+      setIsDecisionModalOpen(false);
+
+      // Refresh authoritative auction details
+      await refreshAuctionData();
+    } catch {
+      setDecisionError('Unable to connect to campus auction server. Please check your connection and try again.');
+    } finally {
+      setIsSubmittingDecision(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* 1. Header with Breadcrumbs and Back Navigation */}
@@ -884,6 +944,14 @@ export default function AuctionDetails() {
 
             {/* 3. Bid Form UI */}
             <div className="pt-4 border-t border-slate-100 space-y-3">
+              {/* Decision Success Notice */}
+              {decisionSuccess && (
+                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-start gap-2 text-xs">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <p className="font-semibold leading-relaxed">{decisionSuccess}</p>
+                </div>
+              )}
+
               {!isAuthenticated ? (
                 /* Unauthenticated Visitor State */
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
@@ -914,33 +982,216 @@ export default function AuctionDetails() {
                 </div>
               ) : isSeller ? (
                 /* Seller State */
-                <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2">
-                  <div className="flex items-start gap-2.5">
-                    <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h3 className="text-xs font-bold text-amber-900">Seller Listing Notice</h3>
-                      <p className="text-xs text-amber-700 leading-relaxed mt-0.5">
-                        You are the seller of this auction listing. To maintain auction fairness and marketplace integrity, sellers cannot place bids on their own listings.
-                      </p>
+                !isEnded ? (
+                  /* Active Auction - Seller Read Only Notice (No decision buttons while active) */
+                  <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2">
+                    <div className="flex items-start gap-2.5">
+                      <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="text-xs font-bold text-amber-900">Seller Listing Notice</h3>
+                        <p className="text-xs text-amber-700 leading-relaxed mt-0.5">
+                          You are the seller of this auction listing. To maintain auction fairness and marketplace integrity, sellers cannot place bids on their own listings.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="pt-1">
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 bg-amber-100/70 px-2.5 py-1 rounded-lg">
+                        <UserCheck className="w-3.5 h-3.5" />
+                        Seller Account (Active Listing)
+                      </span>
                     </div>
                   </div>
-                  <div className="pt-1">
-                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 bg-amber-100/70 px-2.5 py-1 rounded-lg">
-                      <UserCheck className="w-3.5 h-3.5" />
-                      Seller Account (Read Only)
-                    </span>
+                ) : bidCount === 0 || !auction.currentLeaderId ? (
+                  /* Ended Auction - No Bids Received (Unsold) */
+                  <div className="p-4 rounded-xl bg-slate-100 border border-slate-200 text-center space-y-2">
+                    <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-slate-200 text-slate-600 mx-auto">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <h3 className="text-xs font-bold text-slate-800">Auction Ended — Unsold</h3>
+                    <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                      This auction closed without receiving any bids. The listing is marked as unsold.
+                    </p>
                   </div>
-                </div>
+                ) : auction.outcome === 'accepted' ? (
+                  /* Ended Auction - Winning Bid Accepted / Reserved */
+                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2.5">
+                    <div className="flex items-start gap-2.5">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xs font-bold text-emerald-900">Winning Bid Accepted</h3>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-200/80 text-emerald-900">
+                            Reserved
+                          </span>
+                        </div>
+                        <p className="text-xs text-emerald-700 leading-relaxed">
+                          You accepted the winning bid of <strong className="font-semibold text-emerald-950">₹{currentPrice.toLocaleString('en-IN')}</strong> from <strong className="font-semibold text-emerald-950">{auction.currentLeaderName || 'the winning bidder'}</strong>.
+                        </p>
+                        <p className="text-[11px] text-emerald-600 font-medium">
+                          The item is reserved awaiting physical campus handover.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : auction.outcome === 'rejected' ? (
+                  /* Ended Auction - Winning Bid Rejected */
+                  <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 space-y-2">
+                    <div className="flex items-start gap-2.5">
+                      <XCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xs font-bold text-rose-900">Winning Bid Declined</h3>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-200/80 text-rose-900">
+                            Rejected
+                          </span>
+                        </div>
+                        <p className="text-xs text-rose-700 leading-relaxed">
+                          You declined the winning bid of <strong className="font-semibold">₹{currentPrice.toLocaleString('en-IN')}</strong> from <strong className="font-semibold">{auction.currentLeaderName || 'the bidder'}</strong>. This auction is closed without completing a sale.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : auction.outcome === 'sold' ? (
+                  /* Ended Auction - Handover Completed */
+                  <div className="p-4 rounded-xl bg-teal-50 border border-teal-200 space-y-2">
+                    <div className="flex items-start gap-2.5">
+                      <ShieldCheck className="w-5 h-5 text-teal-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="text-xs font-bold text-teal-900">Completed Sale</h3>
+                        <p className="text-xs text-teal-700 leading-relaxed mt-0.5">
+                          Campus handover is complete and this item was sold for ₹{currentPrice.toLocaleString('en-IN')}.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Ended Auction with Bids - Seller Decision Required */
+                  <div className="p-5 rounded-2xl bg-amber-50/70 border-2 border-amber-300 shadow-xs space-y-4">
+                    <div className="flex items-start gap-2.5">
+                      <Trophy className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-amber-950">Winning Bid Decision Required</h3>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900">
+                            Action Needed
+                          </span>
+                        </div>
+                        <p className="text-xs text-amber-800 leading-relaxed mt-1">
+                          This auction has ended. Review the highest bidder's final offer below and choose whether to accept or reject the sale.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Winning Bid Summary Card */}
+                    <div className="p-3.5 rounded-xl bg-white/95 border border-amber-200/80 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-medium">Winning Student:</span>
+                        <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                          <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                          {auction.currentLeaderName || 'Verified Bidder'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-medium">Final Bid Amount:</span>
+                        <span className="text-base font-extrabold text-emerald-700">
+                          ₹{currentPrice.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-slate-100 pt-1.5 text-[11px]">
+                        <span className="text-slate-400">Total Bids Received:</span>
+                        <span className="font-semibold text-slate-700">
+                          {bidCount} {bidCount === 1 ? 'bid' : 'bids'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">Auction Status:</span>
+                        <span className="font-semibold text-amber-700">Awaiting Your Decision</span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons: Accept & Reject */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                      <Button
+                        type="button"
+                        variant="primary"
+                        size="md"
+                        className="w-full justify-center text-xs font-bold bg-emerald-600 hover:bg-emerald-700 border-emerald-600 text-white shadow-xs"
+                        onClick={() => handleOpenDecisionModal('accept')}
+                        disabled={isSubmittingDecision}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                        Accept Winning Bid
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="md"
+                        className="w-full justify-center text-xs font-bold text-rose-700 border-rose-300 hover:bg-rose-50 hover:border-rose-400 shadow-xs"
+                        onClick={() => handleOpenDecisionModal('reject')}
+                        disabled={isSubmittingDecision}
+                      >
+                        <XCircle className="w-4 h-4 mr-1.5" />
+                        Reject Winning Bid
+                      </Button>
+                    </div>
+                  </div>
+                )
               ) : isClosed ? (
-                /* Closed Auction State */
+                /* Closed Auction State for Non-Sellers */
                 <div className="p-4 rounded-xl bg-slate-100 border border-slate-200 text-center space-y-2">
-                  <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-slate-200 text-slate-600 mx-auto">
-                    <Clock className="w-4 h-4" />
-                  </div>
-                  <h3 className="text-xs font-bold text-slate-800">Bidding Is Closed</h3>
-                  <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                    This auction has ended and is no longer accepting new bids.
-                  </p>
+                  {auction.outcome === 'accepted' ? (
+                    <div className="space-y-1.5">
+                      <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 mx-auto">
+                        <Trophy className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-xs font-bold text-emerald-950">
+                        {isUserLeading ? '🎉 You Won This Auction!' : 'Auction Won / Reserved'}
+                      </h3>
+                      <p className="text-xs text-slate-600 max-w-xs mx-auto">
+                        {isUserLeading
+                          ? `The seller accepted your winning bid of ₹${currentPrice.toLocaleString('en-IN')}. The item is reserved awaiting handover!`
+                          : `The winning bid of ₹${currentPrice.toLocaleString('en-IN')} was accepted by the seller.`}
+                      </p>
+                    </div>
+                  ) : auction.outcome === 'rejected' ? (
+                    <div className="space-y-1.5">
+                      <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-rose-100 text-rose-700 mx-auto">
+                        <XCircle className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-xs font-bold text-slate-800">Auction Closed</h3>
+                      <p className="text-xs text-slate-600 max-w-xs mx-auto">
+                        {isUserLeading
+                          ? `Your winning bid of ₹${currentPrice.toLocaleString('en-IN')} was declined by the seller.`
+                          : `The winning bid was not accepted by the seller. The auction is closed.`}
+                      </p>
+                    </div>
+                  ) : auction.outcome === 'sold' ? (
+                    <div className="space-y-1.5">
+                      <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-teal-100 text-teal-700 mx-auto">
+                        <ShieldCheck className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-xs font-bold text-slate-800">Sale Completed</h3>
+                      <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                        This auction is closed and the item handover has been completed.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-slate-200 text-slate-600 mx-auto">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <h3 className="text-xs font-bold text-slate-800">
+                        {bidCount === 0 ? 'Auction Closed — Unsold' : 'Bidding Is Closed'}
+                      </h3>
+                      <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                        {bidCount === 0
+                          ? 'This auction ended with no bids placed.'
+                          : isUserLeading
+                          ? `You are currently the leading bidder at ₹${currentPrice.toLocaleString('en-IN')}. Awaiting seller's final decision.`
+                          : 'This auction has ended and is awaiting seller review.'}
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* Active Bid Placement Form for Eligible Student */
@@ -1328,6 +1579,132 @@ export default function AuctionDetails() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Seller Decision Confirmation Modal */}
+      {isDecisionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                {decisionAction === 'accept' ? (
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center">
+                    <XCircle className="w-5 h-5" />
+                  </div>
+                )}
+                <h3 className="font-bold text-slate-900 text-base">
+                  {decisionAction === 'accept' ? 'Accept Winning Bid?' : 'Reject Winning Bid?'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isSubmittingDecision && setIsDecisionModalOpen(false)}
+                disabled={isSubmittingDecision}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs sm:text-sm text-slate-600">
+              <p>
+                {decisionAction === 'accept' ? (
+                  <>
+                    Are you sure you want to accept the winning bid of{' '}
+                    <strong className="text-slate-900 font-bold">
+                      ₹{currentPrice.toLocaleString('en-IN')}
+                    </strong>{' '}
+                    from{' '}
+                    <strong className="text-slate-900 font-bold">
+                      {auction?.currentLeaderName || 'the winning bidder'}
+                    </strong>
+                    ?
+                  </>
+                ) : (
+                  <>
+                    Are you sure you want to decline the winning bid of{' '}
+                    <strong className="text-slate-900 font-bold">
+                      ₹{currentPrice.toLocaleString('en-IN')}
+                    </strong>{' '}
+                    from{' '}
+                    <strong className="text-slate-900 font-bold">
+                      {auction?.currentLeaderName || 'the winning bidder'}
+                    </strong>
+                    ?
+                  </>
+                )}
+              </p>
+
+              <div
+                className={`p-3 rounded-xl border text-xs leading-relaxed ${
+                  decisionAction === 'accept'
+                    ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                    : 'bg-rose-50/80 border-rose-200 text-rose-900'
+                }`}
+              >
+                {decisionAction === 'accept' ? (
+                  <span>
+                    Accepting will reserve the item awaiting confirmed physical handover and notify the winning student.
+                  </span>
+                ) : (
+                  <span>
+                    Rejecting will close this auction without a completed sale and notify the bidder. This action cannot be undone.
+                  </span>
+                )}
+              </div>
+
+              {decisionError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                  <p className="font-semibold leading-relaxed">{decisionError}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isSubmittingDecision}
+                onClick={() => setIsDecisionModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={isSubmittingDecision}
+                className={
+                  decisionAction === 'accept'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 border-emerald-600 text-white font-bold'
+                    : 'bg-rose-600 hover:bg-rose-700 border-rose-600 text-white font-bold'
+                }
+                onClick={handleConfirmDecision}
+              >
+                {isSubmittingDecision ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                    Processing...
+                  </>
+                ) : decisionAction === 'accept' ? (
+                  'Confirm Accept'
+                ) : (
+                  'Confirm Reject'
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       )}

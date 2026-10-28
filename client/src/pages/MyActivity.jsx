@@ -17,7 +17,10 @@ import {
   Laptop,
   PackageOpen,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  UserCheck,
+  XCircle,
+  X
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
@@ -49,9 +52,13 @@ function StatusBadge({ status }) {
     'Leading': 'bg-emerald-50 text-emerald-700 border-emerald-200',
     'Outbid': 'bg-rose-50 text-rose-700 border-rose-200',
     'Awaiting Seller Approval': 'bg-amber-50 text-amber-800 border-amber-200',
+    'Awaiting Seller Decision': 'bg-amber-50 text-amber-800 border-amber-200',
+    'Awaiting Decision': 'bg-amber-50 text-amber-800 border-amber-200',
     'Reserved': 'bg-indigo-50 text-indigo-700 border-indigo-200',
     'Completed': 'bg-teal-50 text-teal-800 border-teal-200',
     'Sold': 'bg-teal-50 text-teal-800 border-teal-200',
+    'Rejected': 'bg-rose-50 text-rose-700 border-rose-200',
+    'Declined': 'bg-rose-50 text-rose-700 border-rose-200',
     'Unsold': 'bg-slate-100 text-slate-700 border-slate-200',
     'Cancelled': 'bg-slate-100 text-slate-600 border-slate-200',
   };

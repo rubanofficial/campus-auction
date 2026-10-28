@@ -54,6 +54,7 @@ const getNotificationCategory = (type) => {
     case 'outbid':
     case 'bid_placed':
     case 'bid_accepted':
+    case 'bid_rejected':
       return 'Bids';
     case 'sale':
     case 'sold':
@@ -73,6 +74,7 @@ const getNotificationIconInfo = (type) => {
         iconColor: 'text-indigo-600 bg-indigo-50 border-indigo-200',
       };
     case 'outbid':
+    case 'bid_rejected':
       return {
         icon: AlertCircle,
         iconColor: 'text-rose-600 bg-rose-50 border-rose-200',

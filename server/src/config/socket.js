@@ -100,3 +100,21 @@ export const broadcastBidUpdate = (auctionId, payload) => {
   io.to(room).emit('auction:bid-updated', payload);
 };
 
+/**
+ * Broadcast a seller decision (accepted / rejected) event to all clients viewing the auction room.
+ * MUST only be invoked after the database transaction has successfully committed.
+ *
+ * @param {string} auctionId - Auction UUID
+ * @param {Object} payload - Decision update payload
+ */
+export const broadcastAuctionDecision = (auctionId, payload) => {
+  if (!io) {
+    console.warn('[Socket] Cannot broadcast auction decision: Socket.IO is not initialized.');
+    return;
+  }
+
+  const room = `auction:${auctionId}`;
+  io.to(room).emit('auction:decision-updated', payload);
+};
+
+

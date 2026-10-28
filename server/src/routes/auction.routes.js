@@ -10,6 +10,11 @@ import {
   getAutoBidStatus,
   cancelAutoBid,
 } from '../controllers/autoBid.controller.js';
+import {
+  acceptWinningBid,
+  rejectWinningBid,
+  decideWinningBid,
+} from '../controllers/decision.controller.js';
 import { getUserActivity } from '../controllers/activity.controller.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 
@@ -68,5 +73,23 @@ router.get('/:id/auto-bid', requireAuth, getAutoBidStatus);
  * Deactivate automated proxy bidding for this auction
  */
 router.delete('/:id/auto-bid', requireAuth, cancelAutoBid);
+
+/**
+ * POST /api/auctions/:id/accept
+ * Seller accepts the winning bid on an ended auction
+ */
+router.post('/:id/accept', requireAuth, acceptWinningBid);
+
+/**
+ * POST /api/auctions/:id/reject
+ * Seller rejects the winning bid on an ended auction
+ */
+router.post('/:id/reject', requireAuth, rejectWinningBid);
+
+/**
+ * POST /api/auctions/:id/decision
+ * Seller submits decision ('accept' or 'reject') for an ended auction
+ */
+router.post('/:id/decision', requireAuth, decideWinningBid);
 
 export default router;
