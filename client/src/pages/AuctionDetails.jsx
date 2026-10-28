@@ -227,9 +227,9 @@ export default function AuctionDetails() {
       minIncrement: dbAuction.minBidIncrement || 50,
       closingDateTime: dbAuction.endsAt
         ? new Date(dbAuction.endsAt).toLocaleString('en-IN', {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-          })
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        })
         : 'Closing soon',
       closingRemaining: 'Active',
       bidsCount: dbAuction.bidCount || 0,
@@ -353,11 +353,10 @@ export default function AuctionDetails() {
                       setSelectedImageIndex(idx);
                       setImageError(false);
                     }}
-                    className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${
-                      selectedImageIndex === idx
+                    className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${selectedImageIndex === idx
                         ? 'border-indigo-600 ring-2 ring-indigo-500/20'
                         : 'border-slate-200 hover:border-slate-300 opacity-70 hover:opacity-100'
-                    }`}
+                      }`}
                   >
                     <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
                   </button>

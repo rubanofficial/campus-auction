@@ -4,6 +4,7 @@ import {
   getAuctionById,
   getAuctions,
 } from '../controllers/auction.controller.js';
+import { placeBid } from '../controllers/bid.controller.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -25,5 +26,11 @@ router.post('/', requireAuth, createAuction);
  * Retrieve details for a single auction by ID
  */
 router.get('/:id', getAuctionById);
+
+/**
+ * POST /api/auctions/:id/bids
+ * Place a bid on an active auction (requires active student session)
+ */
+router.post('/:id/bids', requireAuth, placeBid);
 
 export default router;
