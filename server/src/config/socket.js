@@ -143,6 +143,16 @@ export const broadcastBidUpdate = (auctionId, payload = {}) => {
     payload.current_leader_name ||
     'Verified Student';
 
+  const endsAt =
+    auction.endsAt ||
+    auction.ends_at ||
+    payload.endsAt ||
+    payload.ends_at ||
+    payload.extendedEndsAt ||
+    null;
+
+  const wasExtended = Boolean(payload.wasExtended || payload.auction?.wasExtended);
+
   const timestamp =
     bid?.createdAt ||
     bid?.created_at ||
@@ -161,6 +171,9 @@ export const broadcastBidUpdate = (auctionId, payload = {}) => {
     current_leader_id: currentLeaderId,
     currentLeaderName,
     current_leader_name: currentLeaderName,
+    endsAt,
+    ends_at: endsAt,
+    wasExtended,
     timestamp,
     bid: bid
       ? {
@@ -187,6 +200,8 @@ export const broadcastBidUpdate = (auctionId, payload = {}) => {
       current_leader_name: currentLeaderName,
       bidCount,
       bid_count: bidCount,
+      endsAt,
+      ends_at: endsAt,
       updatedAt: timestamp,
       updated_at: timestamp,
     },

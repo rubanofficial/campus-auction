@@ -109,6 +109,7 @@ export default function AuctionDetails() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
   const [timeLeft, setTimeLeft] = useState({ hours: '00', minutes: '00', seconds: '00', isEnded: false });
+  const [extensionNotice, setExtensionNotice] = useState(null);
   const [successBanner, setSuccessBanner] = useState(location.state?.successMessage || null);
 
   // Interactive Bidding Form State
@@ -302,9 +303,28 @@ export default function AuctionDetails() {
         payload.bid?.bidderName ||
         payload.bid?.bidder_name;
 
-      // Update current price, leader, and count atomically
+      const payloadEndsAt =
+        payload.endsAt ||
+        payload.ends_at ||
+        payload.auction?.endsAt ||
+        payload.auction?.ends_at;
+
+      const wasExtended = Boolean(payload.wasExtended || payload.auction?.wasExtended);
+
+      // Update current price, leader, count, and closing time atomically
       setAuction((prev) => {
         if (!prev) return prev;
+        const prevEndsAt = prev.endsAt || prev.ends_at;
+        const isExtendedTime =
+          wasExtended ||
+          (payloadEndsAt && prevEndsAt && new Date(payloadEndsAt).getTime() > new Date(prevEndsAt).getTime());
+
+        if (isExtendedTime) {
+          setExtensionNotice('Auction extended by 60 seconds due to last-minute bidding.');
+        }
+
+        const effectiveEndsAt = payloadEndsAt || prev.endsAt || prev.ends_at;
+
         return {
           ...prev,
           currentPrice: !isNaN(newPrice) ? newPrice : prev.currentPrice,
@@ -315,8 +335,14 @@ export default function AuctionDetails() {
           current_leader_id: newLeaderId || prev.currentLeaderId || prev.current_leader_id,
           currentLeaderName: newLeaderName || prev.currentLeaderName || prev.current_leader_name,
           current_leader_name: newLeaderName || prev.currentLeaderName || prev.current_leader_name,
+          endsAt: effectiveEndsAt,
+          ends_at: effectiveEndsAt,
         };
       });
+
+      if (payloadEndsAt) {
+        setTimeLeft(calculateTimeLeft(payloadEndsAt));
+      }
 
       // Prepend bid record to history if not already present (prevents duplicates from HTTP response)
       const bidObj = payload.bid;
@@ -542,6 +568,20 @@ export default function AuctionDetails() {
         );
       }
 
+      const returnedEndsAt =
+        data.endsAt ||
+        data.ends_at ||
+        data.auction?.endsAt ||
+        data.auction?.ends_at;
+
+      if (data.wasExtended) {
+        setExtensionNotice('Auction extended by 60 seconds due to last-minute bidding.');
+      }
+
+      if (returnedEndsAt) {
+        setTimeLeft(calculateTimeLeft(returnedEndsAt));
+      }
+
       // Update local auction state immediately from response
       if (data.auction) {
         setAuction((prev) => ({
@@ -554,6 +594,8 @@ export default function AuctionDetails() {
           current_leader_id: data.auction.currentLeaderId ?? data.auction.current_leader_id ?? prev?.current_leader_id,
           currentLeaderName: data.auction.currentLeaderName ?? data.auction.current_leader_name ?? prev?.currentLeaderName,
           current_leader_name: data.auction.currentLeaderName ?? data.auction.current_leader_name ?? prev?.current_leader_name,
+          endsAt: returnedEndsAt || prev?.endsAt,
+          ends_at: returnedEndsAt || prev?.ends_at,
         }));
       }
 
@@ -931,8 +973,8 @@ export default function AuctionDetails() {
                       setImageError(false);
                     }}
                     className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${selectedImageIndex === idx
-                        ? 'border-indigo-600 ring-2 ring-indigo-500/20'
-                        : 'border-slate-200 hover:border-slate-300 opacity-70 hover:opacity-100'
+                      ? 'border-indigo-600 ring-2 ring-indigo-500/20'
+                      : 'border-slate-200 hover:border-slate-300 opacity-70 hover:opacity-100'
                       }`}
                   >
                     <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
@@ -1021,6 +1063,14 @@ export default function AuctionDetails() {
                   </span>
                 )}
               </div>
+
+              {extensionNotice && !timeLeft.isEnded && (
+                <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-300 text-amber-900 text-xs flex items-center justify-center gap-1.5 font-bold animate-in fade-in duration-200">
+                  <Zap className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 animate-pulse" />
+                  <span>{extensionNotice}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
                 <div className="p-2.5 rounded-lg bg-white border border-indigo-100 shadow-2xs">
                   <div className="text-2xl font-black text-indigo-950">{timeLeft.hours}</div>
@@ -1335,8 +1385,8 @@ export default function AuctionDetails() {
                         {bidCount === 0
                           ? 'This auction ended with no bids placed.'
                           : isUserLeading
-                          ? `You are currently the leading bidder at ₹${currentPrice.toLocaleString('en-IN')}. Awaiting seller's final decision.`
-                          : 'This auction has ended and is awaiting seller review.'}
+                            ? `You are currently the leading bidder at ₹${currentPrice.toLocaleString('en-IN')}. Awaiting seller's final decision.`
+                            : 'This auction has ended and is awaiting seller review.'}
                       </p>
                     </div>
                   )}
@@ -1489,11 +1539,10 @@ export default function AuctionDetails() {
                   {/* Success / Outbid Notification Alert Banner */}
                   {bidSuccess && (
                     <div
-                      className={`p-3 rounded-xl border flex items-start gap-2 text-xs animate-in fade-in duration-150 ${
-                        isUserLeading
+                      className={`p-3 rounded-xl border flex items-start gap-2 text-xs animate-in fade-in duration-150 ${isUserLeading
                           ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                           : 'bg-amber-50 border-amber-300 text-amber-900'
-                      }`}
+                        }`}
                     >
                       {isUserLeading ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
@@ -1794,11 +1843,10 @@ export default function AuctionDetails() {
               </p>
 
               <div
-                className={`p-3 rounded-xl border text-xs leading-relaxed ${
-                  decisionAction === 'accept'
+                className={`p-3 rounded-xl border text-xs leading-relaxed ${decisionAction === 'accept'
                     ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
                     : 'bg-rose-50/80 border-rose-200 text-rose-900'
-                }`}
+                  }`}
               >
                 {decisionAction === 'accept' ? (
                   <span>

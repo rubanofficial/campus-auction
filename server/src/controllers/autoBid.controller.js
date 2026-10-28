@@ -30,15 +30,31 @@ export const placeInternalBid = async (
   const bidResult = await client.query(insertQuery, [auction.id, bidderId, amount]);
   const createdBid = bidResult.rows[0];
 
-  // 2. Atomically update auction current_price, current_leader_id, bid_count
+  // Anti-Sniping / Last-Minute Extension:
+  // When a valid bid is accepted during the final 30 seconds (remainingMs <= 30000 && remainingMs > 0),
+  // extend the auction's closing time to 60 seconds after that bid is accepted.
+  const bidTime = new Date(createdBid.created_at);
+  const currentEndsAt = new Date(auction.ends_at);
+  const remainingMs = currentEndsAt.getTime() - bidTime.getTime();
+
+  let newEndsAt = currentEndsAt;
+  let wasExtended = false;
+
+  if (remainingMs > 0 && remainingMs <= 30 * 1000) {
+    newEndsAt = new Date(Math.max(currentEndsAt.getTime(), bidTime.getTime() + 60 * 1000));
+    wasExtended = true;
+  }
+
+  // 2. Atomically update auction current_price, current_leader_id, bid_count, and ends_at
   const updateQuery = `
     UPDATE auctions
     SET
       current_price = $1,
       current_leader_id = $2,
       bid_count = bid_count + 1,
+      ends_at = $3,
       updated_at = CURRENT_TIMESTAMP
-    WHERE id = $3
+    WHERE id = $4
     RETURNING
       id,
       title,
@@ -52,13 +68,19 @@ export const placeInternalBid = async (
       status,
       updated_at;
   `;
-  const updateResult = await client.query(updateQuery, [amount, bidderId, auction.id]);
+  const updateResult = await client.query(updateQuery, [
+    amount,
+    bidderId,
+    newEndsAt.toISOString(),
+    auction.id,
+  ]);
   const updatedAuction = updateResult.rows[0];
 
   // 3. Mutate in-memory auction representation for loop consistency
   auction.current_price = updatedAuction.current_price;
   auction.current_leader_id = updatedAuction.current_leader_id;
   auction.bid_count = updatedAuction.bid_count;
+  auction.ends_at = updatedAuction.ends_at;
   auction.updated_at = updatedAuction.updated_at;
 
   return {
@@ -76,8 +98,13 @@ export const placeInternalBid = async (
       currentLeaderId: updatedAuction.current_leader_id,
       currentLeaderName: bidderName,
       bidCount: updatedAuction.bid_count,
+      endsAt: updatedAuction.ends_at,
+      ends_at: updatedAuction.ends_at,
       updatedAt: updatedAuction.updated_at,
+      updated_at: updatedAuction.updated_at,
     },
+    wasExtended,
+    extendedEndsAt: wasExtended ? updatedAuction.ends_at : null,
   };
 };
 
@@ -354,46 +381,52 @@ export const setupOrUpdateAutoBid = async (req, res) => {
     const winningBidRecord = placedBids[placedBids.length - 1];
     const isLeading = auction.current_leader_id === userId;
     const finalLeaderName = winningBidRecord?.bid?.bidderName || userDisplayName;
+    const anyExtended = placedBids.some((b) => b.wasExtended);
 
     return res.status(200).json({
       message: isLeading
-        ? 'Auto Bid activated successfully. You are now the leading bidder.'
-        : `Auto Bid activated, but ${finalLeaderName} currently holds the lead at ₹${auction.current_price.toLocaleString('en-IN')}.`,
+        ? `Auto Bid activated successfully. You are now the leading bidder.${anyExtended ? ' Auction extended by 60 seconds due to last-minute bidding.' : ''}`
+      : `Auto Bid activated, but ${finalLeaderName} currently holds the lead at ₹${auction.current_price.toLocaleString('en-IN')}.${anyExtended ? ' Auction extended by 60 seconds due to last-minute bidding.' : ''}`,
       autoBid: {
-        id: autoBidRecord.id,
-        auctionId: autoBidRecord.auction_id,
-        maxAmount: autoBidRecord.max_amount,
-        isActive: autoBidRecord.is_active,
-        createdAt: autoBidRecord.created_at,
-        updatedAt: autoBidRecord.updated_at,
-      },
+      id: autoBidRecord.id,
+      auctionId: autoBidRecord.auction_id,
+      maxAmount: autoBidRecord.max_amount,
+      isActive: autoBidRecord.is_active,
+      createdAt: autoBidRecord.created_at,
+      updatedAt: autoBidRecord.updated_at,
+    },
+      wasExtended: anyExtended,
+      endsAt: auction.ends_at,
+      ends_at: auction.ends_at,
       auction: {
-        id: auction.id,
-        currentPrice: auction.current_price,
-        current_price: auction.current_price,
-        currentLeaderId: auction.current_leader_id,
-        current_leader_id: auction.current_leader_id,
-        currentLeaderName: finalLeaderName,
-        current_leader_name: finalLeaderName,
-        bidCount: auction.bid_count,
-        bid_count: auction.bid_count,
-        updatedAt: auction.updated_at,
-        updated_at: auction.updated_at,
-      },
+      id: auction.id,
+      currentPrice: auction.current_price,
+      current_price: auction.current_price,
+      currentLeaderId: auction.current_leader_id,
+      current_leader_id: auction.current_leader_id,
+      currentLeaderName: finalLeaderName,
+      current_leader_name: finalLeaderName,
+      bidCount: auction.bid_count,
+      bid_count: auction.bid_count,
+      endsAt: auction.ends_at,
+      ends_at: auction.ends_at,
+      updatedAt: auction.updated_at,
+      updated_at: auction.updated_at,
+    },
       bidsPlacedCount: placedBids.length,
       currentPrice: auction.current_price,
       isLeading,
     });
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
-    console.error(`[AutoBid Controller] Error activating auto-bid: ${error.message}`);
-    return res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'An unexpected error occurred while setting up Auto Bid.',
-    });
-  } finally {
-    client.release();
-  }
+} catch (error) {
+  await client.query('ROLLBACK').catch(() => { });
+  console.error(`[AutoBid Controller] Error activating auto-bid: ${error.message}`);
+  return res.status(500).json({
+    error: 'Internal Server Error',
+    message: 'An unexpected error occurred while setting up Auto Bid.',
+  });
+} finally {
+  client.release();
+}
 };
 
 /**

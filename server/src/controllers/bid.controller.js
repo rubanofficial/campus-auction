@@ -185,39 +185,45 @@ export const placeBid = async (req, res) => {
     const winningBidRecord = placedBids[placedBids.length - 1];
     const isStillLeader = auction.current_leader_id === bidderId;
     const finalLeaderName = winningBidRecord?.bid?.bidderName || bidderName;
+    const anyExtended = placedBids.some((b) => b.wasExtended);
 
     return res.status(201).json({
       message: isStillLeader
-        ? `Your bid of ₹${parsedAmount.toLocaleString('en-IN')} was placed successfully! You are now the leading bidder.`
-        : `Your bid of ₹${parsedAmount.toLocaleString('en-IN')} was placed, but ${finalLeaderName} automatically counter-bid ₹${auction.current_price.toLocaleString('en-IN')} to regain the lead.`,
+        ? `Your bid of ₹${parsedAmount.toLocaleString('en-IN')} was placed successfully! You are now the leading bidder.${anyExtended ? ' Auction extended by 60 seconds due to last-minute bidding.' : ''}`
+      : `Your bid of ₹${parsedAmount.toLocaleString('en-IN')} was placed, but ${finalLeaderName} automatically counter-bid ₹${auction.current_price.toLocaleString('en-IN')} to regain the lead.${anyExtended ? ' Auction extended by 60 seconds due to last-minute bidding.' : ''}`,
       bid: winningBidRecord?.bid || placedBids[0].bid,
       userBid: placedBids[0].bid,
       isLeader: isStillLeader,
+      wasExtended: anyExtended,
+      endsAt: auction.ends_at,
+      ends_at: auction.ends_at,
       auction: {
-        id: auction.id,
-        currentPrice: auction.current_price,
-        current_price: auction.current_price,
-        currentLeaderId: auction.current_leader_id,
-        current_leader_id: auction.current_leader_id,
-        currentLeaderName: finalLeaderName,
-        current_leader_name: finalLeaderName,
-        bidCount: auction.bid_count,
-        bid_count: auction.bid_count,
-        updatedAt: auction.updated_at,
-        updated_at: auction.updated_at,
-      },
+      id: auction.id,
+      currentPrice: auction.current_price,
+      current_price: auction.current_price,
+      currentLeaderId: auction.current_leader_id,
+      current_leader_id: auction.current_leader_id,
+      currentLeaderName: finalLeaderName,
+      current_leader_name: finalLeaderName,
+      bidCount: auction.bid_count,
+      bid_count: auction.bid_count,
+      endsAt: auction.ends_at,
+      ends_at: auction.ends_at,
+      updatedAt: auction.updated_at,
+      updated_at: auction.updated_at,
+    },
       counterBidsPlaced: placedBids.length - 1,
     });
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
-    console.error(`[Bidding Controller] Error placing bid: ${error.message}`);
-    return res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'An unexpected error occurred while placing your bid. Please try again.',
-    });
-  } finally {
-    client.release();
-  }
+} catch (error) {
+  await client.query('ROLLBACK').catch(() => { });
+  console.error(`[Bidding Controller] Error placing bid: ${error.message}`);
+  return res.status(500).json({
+    error: 'Internal Server Error',
+    message: 'An unexpected error occurred while placing your bid. Please try again.',
+  });
+} finally {
+  client.release();
+}
 };
 
 /**
