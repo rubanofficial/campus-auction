@@ -386,3 +386,239 @@ export const getAuctionById = async (req, res) => {
     });
   }
 };
+
+const SORT_OPTIONS = {
+  newest: 'a.created_at DESC, a.id DESC',
+  closingsoon: 'a.ends_at ASC, a.id ASC',
+  closing_soon: 'a.ends_at ASC, a.id ASC',
+  pricelowtohigh: 'a.starting_price ASC, a.id ASC',
+  price_asc: 'a.starting_price ASC, a.id ASC',
+  pricehightolow: 'a.starting_price DESC, a.id DESC',
+  price_desc: 'a.starting_price DESC, a.id DESC',
+};
+
+/**
+ * Browse, search, and filter eligible active auctions
+ * GET /api/auctions
+ */
+export const getAuctions = async (req, res) => {
+  try {
+    // 1. Pagination Validation
+    let page = 1;
+    if (req.query.page !== undefined && req.query.page !== '') {
+      const parsedPage = Number(req.query.page);
+      if (!Number.isInteger(parsedPage) || parsedPage < 1) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: 'Page parameter must be a positive integer greater than or equal to 1.',
+        });
+      }
+      page = parsedPage;
+    }
+
+    let limit = 12;
+    if (req.query.limit !== undefined && req.query.limit !== '') {
+      const parsedLimit = Number(req.query.limit);
+      if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 50) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: 'Limit parameter must be an integer between 1 and 50.',
+        });
+      }
+      limit = parsedLimit;
+    }
+
+    // 2. Category Filter Validation
+    let categoryFilter = null;
+    if (req.query.category !== undefined && req.query.category !== '') {
+      const rawCategory = String(req.query.category).trim().toLowerCase();
+      if (rawCategory !== 'all') {
+        categoryFilter = CATEGORY_MAP[rawCategory];
+        if (!categoryFilter) {
+          return res.status(400).json({
+            error: 'Validation Error',
+            message: 'Invalid category. Allowed values: cycle, calculator, books, electronics, other.',
+          });
+        }
+      }
+    }
+
+    // 3. Condition Filter Validation
+    let conditionFilter = null;
+    if (req.query.condition !== undefined && req.query.condition !== '') {
+      const rawCondition = String(req.query.condition).trim().toLowerCase().replace(/[\s-]+/g, '_');
+      if (rawCondition !== 'all') {
+        if (!VALID_CONDITIONS.includes(rawCondition)) {
+          return res.status(400).json({
+            error: 'Validation Error',
+            message: 'Invalid condition. Allowed values: like_new, good, fair.',
+          });
+        }
+        conditionFilter = rawCondition;
+      }
+    }
+
+    // 4. Price Filter Validation (minPrice and maxPrice)
+    let minPrice = null;
+    const rawMinPrice = req.query.minPrice !== undefined ? req.query.minPrice : req.query.min_price;
+    if (rawMinPrice !== undefined && rawMinPrice !== '') {
+      const parsedMin = Number(rawMinPrice);
+      if (isNaN(parsedMin) || parsedMin < 0) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: 'minPrice must be a non-negative number.',
+        });
+      }
+      minPrice = Math.floor(parsedMin);
+    }
+
+    let maxPrice = null;
+    const rawMaxPrice = req.query.maxPrice !== undefined ? req.query.maxPrice : req.query.max_price;
+    if (rawMaxPrice !== undefined && rawMaxPrice !== '') {
+      const parsedMax = Number(rawMaxPrice);
+      if (isNaN(parsedMax) || parsedMax < 0) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: 'maxPrice must be a non-negative number.',
+        });
+      }
+      maxPrice = Math.floor(parsedMax);
+    }
+
+    if (minPrice !== null && maxPrice !== null && minPrice > maxPrice) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'minPrice cannot be greater than maxPrice.',
+      });
+    }
+
+    // 5. Sort Allowlist Validation
+    let sortClause = SORT_OPTIONS.newest; // Default ordering
+    if (req.query.sort !== undefined && req.query.sort !== '') {
+      const sortKey = String(req.query.sort).trim().toLowerCase();
+      if (SORT_OPTIONS[sortKey]) {
+        sortClause = SORT_OPTIONS[sortKey];
+      } else {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: 'Invalid sort option. Supported options: newest, closingSoon, priceLowToHigh, priceHighToLow.',
+        });
+      }
+    }
+
+    // 6. Search Filter
+    let searchPattern = null;
+    if (req.query.search !== undefined && req.query.search !== '') {
+      const trimmedSearch = String(req.query.search).trim();
+      if (trimmedSearch.length > 0) {
+        // Escape special ILIKE wildcard characters (%, _) to prevent wildcard injection
+        const escapedSearch = trimmedSearch.replace(/[%_\\]/g, '\\$&');
+        searchPattern = `%${escapedSearch}%`;
+      }
+    }
+
+    // 7. Marketplace Eligibility & Dynamic Where Clauses
+    // Only return auctions that are active, have already started, and have not yet ended
+    const whereClauses = [
+      `a.status = 'active'`,
+      `a.starts_at <= CURRENT_TIMESTAMP`,
+      `a.ends_at > CURRENT_TIMESTAMP`,
+    ];
+    const params = [];
+
+    if (categoryFilter) {
+      params.push(categoryFilter);
+      whereClauses.push(`a.category = $${params.length}`);
+    }
+
+    if (conditionFilter) {
+      params.push(conditionFilter);
+      whereClauses.push(`a.condition = $${params.length}`);
+    }
+
+    if (minPrice !== null) {
+      params.push(minPrice);
+      whereClauses.push(`a.starting_price >= $${params.length}`);
+    }
+
+    if (maxPrice !== null) {
+      params.push(maxPrice);
+      whereClauses.push(`a.starting_price <= $${params.length}`);
+    }
+
+    if (searchPattern) {
+      params.push(searchPattern);
+      whereClauses.push(`(a.title ILIKE $${params.length} ESCAPE '\\' OR a.description ILIKE $${params.length} ESCAPE '\\')`);
+    }
+
+    const whereSql = whereClauses.join(' AND ');
+
+    // 8. Count Query
+    const countSql = `
+      SELECT COUNT(*)::int AS total
+      FROM auctions a
+      WHERE ${whereSql};
+    `;
+    const countResult = await query(countSql, params);
+    const totalResults = countResult.rows[0]?.total || 0;
+    const totalPages = Math.ceil(totalResults / limit) || 1;
+
+    // 9. Results Query
+    const offset = (page - 1) * limit;
+    const resultsParams = [...params, limit, offset];
+    const limitIdx = resultsParams.length - 1;
+    const offsetIdx = resultsParams.length;
+
+    const selectSql = `
+      SELECT
+        a.id,
+        a.seller_id,
+        u.display_name AS seller_name,
+        a.title,
+        a.category,
+        a.description,
+        a.condition,
+        a.images,
+        a.starting_price,
+        a.min_bid_increment,
+        a.current_price,
+        a.current_leader_id,
+        l.display_name AS current_leader_name,
+        a.bid_count,
+        a.starts_at,
+        a.ends_at,
+        a.status,
+        a.outcome,
+        a.created_at,
+        a.updated_at
+      FROM auctions a
+      JOIN users u ON a.seller_id = u.id
+      LEFT JOIN users l ON a.current_leader_id = l.id
+      WHERE ${whereSql}
+      ORDER BY ${sortClause}
+      LIMIT $${limitIdx} OFFSET $${offsetIdx};
+    `;
+
+    const results = await query(selectSql, resultsParams);
+    const auctions = results.rows.map((row) => formatAuction(row));
+
+    // 10. Return Response with Pagination Metadata
+    return res.status(200).json({
+      auctions,
+      pagination: {
+        page,
+        limit,
+        totalResults,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    });
+  } catch (error) {
+    console.error(`[Auction] Browse auctions error: ${error.message}`);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to retrieve auctions. Please try again.',
+    });
+  }
+};

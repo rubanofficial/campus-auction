@@ -1,8 +1,18 @@
 import { Router } from 'express';
-import { createAuction, getAuctionById } from '../controllers/auction.controller.js';
+import {
+  createAuction,
+  getAuctionById,
+  getAuctions,
+} from '../controllers/auction.controller.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
+
+/**
+ * GET /api/auctions
+ * Browse, search, and filter active auctions
+ */
+router.get('/', getAuctions);
 
 /**
  * POST /api/auctions
