@@ -25,10 +25,9 @@ export default function Navbar({ isSidebarOpen, onToggleSidebar }) {
     navigate('/login', { replace: true });
   };
   const navLinkClass = ({ isActive }) =>
-    `inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-      isActive
-        ? 'text-indigo-600 bg-indigo-50/80 font-semibold'
-        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+    `inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive
+      ? 'text-indigo-600 bg-indigo-50/80 font-semibold'
+      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
     }`;
 
   return (

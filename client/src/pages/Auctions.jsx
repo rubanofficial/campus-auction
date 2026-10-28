@@ -306,297 +306,294 @@ export default function Auctions() {
         }
       />
 
-      {/* AI Assistant Banner */}
-      <div className="p-3.5 rounded-xl bg-gradient-to-r from-indigo-50 via-purple-50 to-indigo-50 border border-indigo-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-indigo-950">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-          <p>
-            <span className="font-bold">Natural-Language Search:</span> Looking for items under a specific budget? Ask our AI assistant in plain English.
-          </p>
-        </div>
-        <Link
-          to="/ai-search"
-          className="inline-flex items-center gap-1 font-bold text-indigo-600 hover:text-indigo-800 shrink-0 hover:underline"
-        >
-          <span>Try AI Assistant</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
-      </div>
-
-      {/* 2. Prominent Search Bar & Sort Row */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row gap-3 items-center justify-between">
-        {/* Search Input */}
-        <div className="relative w-full sm:flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by title, description, or model (e.g. Hero, Casio, Grewal)..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none transition-colors"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"
-              aria-label="Clear search"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-
-        {/* Controls: Mobile Filter Toggle & Sort Dropdown */}
-        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-2">
-          {/* Mobile Filter Toggle Button */}
-          <button
-            type="button"
-            onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
-            className="lg:hidden inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs"
-            aria-expanded={isMobileFilterOpen}
+        {/* AI Assistant Banner */}
+        <div className="p-3.5 rounded-xl bg-gradient-to-r from-indigo-50 via-purple-50 to-indigo-50 border border-indigo-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-indigo-950">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+            <p>
+              <span className="font-bold">Natural-Language Search:</span> Looking for items under a specific budget? Ask our AI assistant in plain English.
+            </p>
+          </div>
+          <Link
+            to="/ai-search"
+            className="inline-flex items-center gap-1 font-bold text-indigo-600 hover:text-indigo-800 shrink-0 hover:underline"
           >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Filters</span>
-            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isMobileFilterOpen ? 'rotate-180' : ''}`} />
-          </button>
-
-          {/* Sort Selection */}
-          <div className="relative min-w-[170px]">
-            <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="w-full pl-8 pr-7 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none appearance-none"
-            >
-              <option value="closingSoon">Closing Soonest</option>
-              <option value="newest">Newly Listed</option>
-              <option value="priceLowToHigh">Price: Low to High</option>
-              <option value="priceHighToLow">Price: High to Low</option>
-            </select>
-          </div>
+            <span>Try AI Assistant</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
-      </div>
 
-      {/* Main Grid: Responsive Filter Panel + Auction Cards Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-        {/* 3. Filter Sidebar Panel */}
-        <aside
-          className={`lg:col-span-1 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-6 ${
-            isMobileFilterOpen ? 'block' : 'hidden lg:block'
-          }`}
-          aria-label="Filter Auctions"
-        >
-          {/* Filter Header */}
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-indigo-600" />
-              <h2 className="text-sm font-bold text-slate-900">Filters</h2>
-            </div>
+        {/* 2. Prominent Search Bar & Sort Row */}
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row gap-3 items-center justify-between">
+          {/* Search Input */}
+          <div className="relative w-full sm:flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by title, description, or model (e.g. Hero, Casio, Grewal)..."
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none transition-colors"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Controls: Mobile Filter Toggle & Sort Dropdown */}
+          <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-2">
+            {/* Mobile Filter Toggle Button */}
             <button
               type="button"
-              onClick={handleClearFilters}
-              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+              onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+              className="lg:hidden inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs"
+              aria-expanded={isMobileFilterOpen}
             >
-              Clear All
+              <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Filters</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isMobileFilterOpen ? 'rotate-180' : ''}`} />
             </button>
-          </div>
 
-          {/* Filter 1: Category */}
-          <div className="space-y-2.5">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-              Category
-            </label>
-            <div className="space-y-1.5">
-              {categories.map((cat) => (
-                <label
-                  key={cat}
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
-                    selectedCategory === cat
-                      ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="categoryFilter"
-                      checked={selectedCategory === cat}
-                      onChange={() => setSelectedCategory(cat)}
-                      className="text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span>{cat}</span>
-                  </div>
-                </label>
-              ))}
+            {/* Sort Selection */}
+            <div className="relative min-w-[170px]">
+              <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full pl-8 pr-7 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none appearance-none"
+              >
+                <option value="closingSoon">Closing Soonest</option>
+                <option value="newest">Newly Listed</option>
+                <option value="priceLowToHigh">Price: Low to High</option>
+                <option value="priceHighToLow">Price: High to Low</option>
+              </select>
             </div>
           </div>
+        </div>
 
-          {/* Filter 2: Condition */}
-          <div className="space-y-2.5 pt-3 border-t border-slate-100">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-              Item Condition
-            </label>
-            <div className="space-y-1.5">
-              {conditions.map((cond) => (
-                <label
-                  key={cond}
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
-                    selectedCondition === cond
-                      ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="conditionFilter"
-                      checked={selectedCondition === cond}
-                      onChange={() => setSelectedCondition(cond)}
-                      className="text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span>{cond}</span>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Filter 3: Price Range (₹) */}
-          <div className="space-y-2.5 pt-3 border-t border-slate-100">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-              Starting Price Range (₹)
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
-                <input
-                  type="number"
-                  placeholder="Min"
-                  min="0"
-                  value={minPrice}
-                  onChange={(e) => setMinPrice(e.target.value)}
-                  className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none"
-                />
+        {/* Main Grid: Responsive Filter Panel + Auction Cards Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+          {/* 3. Filter Sidebar Panel */}
+          <aside
+            className={`lg:col-span-1 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-6 ${isMobileFilterOpen ? 'block' : 'hidden lg:block'
+              }`}
+            aria-label="Filter Auctions"
+          >
+            {/* Filter Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-indigo-600" />
+                <h2 className="text-sm font-bold text-slate-900">Filters</h2>
               </div>
-              <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
-                <input
-                  type="number"
-                  placeholder="Max"
-                  min="0"
-                  value={maxPrice}
-                  onChange={(e) => setMaxPrice(e.target.value)}
-                  className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none"
-                />
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+              >
+                Clear All
+              </button>
+            </div>
+
+            {/* Filter 1: Category */}
+            <div className="space-y-2.5">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                Category
+              </label>
+              <div className="space-y-1.5">
+                {categories.map((cat) => (
+                  <label
+                    key={cat}
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${selectedCategory === cat
+                        ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="categoryFilter"
+                        checked={selectedCategory === cat}
+                        onChange={() => setSelectedCategory(cat)}
+                        className="text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>{cat}</span>
+                    </div>
+                  </label>
+                ))}
               </div>
             </div>
-          </div>
 
-          {/* Clear Filters Action Button */}
-          <div className="pt-3 border-t border-slate-100">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClearFilters}
-              className="w-full text-center"
-            >
-              Reset All Filters
-            </Button>
-          </div>
-        </aside>
+            {/* Filter 2: Condition */}
+            <div className="space-y-2.5 pt-3 border-t border-slate-100">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                Item Condition
+              </label>
+              <div className="space-y-1.5">
+                {conditions.map((cond) => (
+                  <label
+                    key={cond}
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${selectedCondition === cond
+                        ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="conditionFilter"
+                        checked={selectedCondition === cond}
+                        onChange={() => setSelectedCondition(cond)}
+                        className="text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>{cond}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
 
-        {/* 4. Auction Cards Grid Section */}
-        <div className="lg:col-span-3 space-y-4">
-          {/* Active Results Summary */}
-          <div className="flex items-center justify-between text-xs text-slate-500 px-1">
-            <span>
-              {isLoading ? (
-                'Loading active listings...'
-              ) : (
-                <>
-                  Showing <strong className="text-slate-800">{auctions.length}</strong> {auctions.length === 1 ? 'auction' : 'auctions'}
-                </>
-              )}
-            </span>
-            <span className="hidden sm:inline text-slate-400">
-              Campus pickup only · Zero shipping charges
-            </span>
-          </div>
-
-          {/* Loading State */}
-          {isLoading && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div
-                  key={i}
-                  className="bg-white rounded-2xl border border-slate-200/80 p-4 space-y-3 animate-pulse"
-                >
-                  <div className="aspect-4/3 w-full bg-slate-100 rounded-xl" />
-                  <div className="h-4 bg-slate-100 rounded-md w-3/4" />
-                  <div className="h-3 bg-slate-100 rounded-md w-1/2" />
-                  <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
-                    <div className="h-5 bg-slate-100 rounded-md w-20" />
-                    <div className="h-8 bg-slate-100 rounded-xl w-24" />
-                  </div>
+            {/* Filter 3: Price Range (₹) */}
+            <div className="space-y-2.5 pt-3 border-t border-slate-100">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                Starting Price Range (₹)
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    placeholder="Min"
+                    min="0"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                    className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none"
+                  />
                 </div>
-              ))}
-            </div>
-          )}
-
-          {/* Error State */}
-          {!isLoading && errorMessage && (
-            <div className="p-8 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 text-center space-y-3 shadow-xs">
-              <AlertCircle className="w-8 h-8 text-rose-600 mx-auto" />
-              <div className="space-y-1">
-                <h3 className="font-bold text-base text-rose-950">Unable to Load Auctions</h3>
-                <p className="text-xs text-rose-800 max-w-md mx-auto">{errorMessage}</p>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    placeholder="Max"
+                    min="0"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                    className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
               </div>
+            </div>
+
+            {/* Clear Filters Action Button */}
+            <div className="pt-3 border-t border-slate-100">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={fetchAuctions}
-                icon={RefreshCw}
-                className="mt-2 bg-white"
+                onClick={handleClearFilters}
+                className="w-full text-center"
               >
-                Retry
+                Reset All Filters
               </Button>
             </div>
-          )}
+          </aside>
 
-          {/* Empty State */}
-          {!isLoading && !errorMessage && auctions.length === 0 && (
-            <div className="p-12 rounded-2xl bg-white border border-slate-200/80 text-center space-y-4 shadow-xs">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
-                <Tag className="w-7 h-7" />
-              </div>
-              <div className="space-y-1 max-w-sm mx-auto">
-                <h3 className="font-bold text-base text-slate-900">No Auctions Found</h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  No active listings match your current search or filter criteria. Try clearing some filters or be the first to list an item!
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={handleClearFilters}>
-                  Clear Filters
-                </Button>
-                <Button as={Link} to="/auctions/create" variant="primary" size="sm" icon={PlusCircle}>
-                  Create Auction
-                </Button>
-              </div>
+          {/* 4. Auction Cards Grid Section */}
+          <div className="lg:col-span-3 space-y-4">
+            {/* Active Results Summary */}
+            <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+              <span>
+                {isLoading ? (
+                  'Loading active listings...'
+                ) : (
+                  <>
+                    Showing <strong className="text-slate-800">{auctions.length}</strong> {auctions.length === 1 ? 'auction' : 'auctions'}
+                  </>
+                )}
+              </span>
+              <span className="hidden sm:inline text-slate-400">
+                Campus pickup only · Zero shipping charges
+              </span>
             </div>
-          )}
 
-          {/* Real Auction Cards Grid */}
-          {!isLoading && !errorMessage && auctions.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-              {auctions.map((auction) => (
-                <AuctionCard key={auction.id} item={auction} />
-              ))}
-            </div>
-          )}
+            {/* Loading State */}
+            {isLoading && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div
+                    key={i}
+                    className="bg-white rounded-2xl border border-slate-200/80 p-4 space-y-3 animate-pulse"
+                  >
+                    <div className="aspect-4/3 w-full bg-slate-100 rounded-xl" />
+                    <div className="h-4 bg-slate-100 rounded-md w-3/4" />
+                    <div className="h-3 bg-slate-100 rounded-md w-1/2" />
+                    <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
+                      <div className="h-5 bg-slate-100 rounded-md w-20" />
+                      <div className="h-8 bg-slate-100 rounded-xl w-24" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Error State */}
+            {!isLoading && errorMessage && (
+              <div className="p-8 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 text-center space-y-3 shadow-xs">
+                <AlertCircle className="w-8 h-8 text-rose-600 mx-auto" />
+                <div className="space-y-1">
+                  <h3 className="font-bold text-base text-rose-950">Unable to Load Auctions</h3>
+                  <p className="text-xs text-rose-800 max-w-md mx-auto">{errorMessage}</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchAuctions}
+                  icon={RefreshCw}
+                  className="mt-2 bg-white"
+                >
+                  Retry
+                </Button>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {!isLoading && !errorMessage && auctions.length === 0 && (
+              <div className="p-12 rounded-2xl bg-white border border-slate-200/80 text-center space-y-4 shadow-xs">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
+                  <Tag className="w-7 h-7" />
+                </div>
+                <div className="space-y-1 max-w-sm mx-auto">
+                  <h3 className="font-bold text-base text-slate-900">No Auctions Found</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    No active listings match your current search or filter criteria. Try clearing some filters or be the first to list an item!
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                  <Button variant="outline" size="sm" onClick={handleClearFilters}>
+                    Clear Filters
+                  </Button>
+                  <Button as={Link} to="/auctions/create" variant="primary" size="sm" icon={PlusCircle}>
+                    Create Auction
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Real Auction Cards Grid */}
+            {!isLoading && !errorMessage && auctions.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                {auctions.map((auction) => (
+                  <AuctionCard key={auction.id} item={auction} />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
+      );
 }

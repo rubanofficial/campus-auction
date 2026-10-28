@@ -11,3 +11,4 @@ router.use(requireAuth);
 router.post('/search', searchAuctionsWithAi);
 
 export default router;
+

@@ -46,10 +46,9 @@ export default function Sidebar({ isOpen, onClose }) {
   ];
 
   const linkClass = ({ isActive }) =>
-    `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
-      isActive
-        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200 font-semibold'
-        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+    `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${isActive
+      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200 font-semibold'
+      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
     }`;
 
   return (
@@ -65,9 +64,8 @@ export default function Sidebar({ isOpen, onClose }) {
 
       {/* Sidebar Panel */}
       <aside
-        className={`fixed top-16 bottom-0 left-0 z-40 w-64 bg-white border-r border-slate-200/80 p-4 flex flex-col justify-between transition-transform duration-200 ease-in-out ${
-          isOpen ? 'translate-x-0 shadow-xl lg:shadow-none' : '-translate-x-full lg:translate-x-0'
-        } lg:static lg:h-[calc(100vh-4rem)] lg:flex-shrink-0`}
+        className={`fixed top-16 bottom-0 left-0 z-40 w-64 bg-white border-r border-slate-200/80 p-4 flex flex-col justify-between transition-transform duration-200 ease-in-out ${isOpen ? 'translate-x-0 shadow-xl lg:shadow-none' : '-translate-x-full lg:translate-x-0'
+          } lg:static lg:h-[calc(100vh-4rem)] lg:flex-shrink-0`}
         aria-label="Sidebar Navigation"
       >
         <div className="space-y-6">

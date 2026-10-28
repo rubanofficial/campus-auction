@@ -23,7 +23,10 @@ export const normalizeCriteria = (raw = {}) => {
 
   // 1. Keyword
   if (typeof raw.keyword === 'string' && raw.keyword.trim().length > 0) {
-    let trimmed = raw.keyword.trim().replace(/^(?:a|an|the)\s+/i, '');
+    let trimmed = raw.keyword
+      .trim()
+      .replace(/^(?:a|an|the|show|find|give me|get me|search for|list)\s+/i, '')
+      .trim();
     if (trimmed.length > 0 && trimmed.length <= 80) {
       normalized.keyword = trimmed;
     }
@@ -42,6 +45,23 @@ export const normalizeCriteria = (raw = {}) => {
       normalized.category = 'books';
     } else if (cat.includes('elect') || cat.includes('tech') || cat.includes('laptop') || cat.includes('headphone')) {
       normalized.category = 'electronics';
+    }
+  }
+
+  // If keyword simply duplicates category name, clear keyword to allow category search
+  if (normalized.keyword && normalized.category) {
+    const kw = normalized.keyword.toLowerCase();
+    if (
+      kw === normalized.category ||
+      kw === normalized.category + 's' ||
+      kw === 'bicycle' ||
+      kw === 'bicycles' ||
+      kw === 'textbook' ||
+      kw === 'textbooks' ||
+      kw === 'electronic' ||
+      kw === 'electronics'
+    ) {
+      normalized.keyword = null;
     }
   }
 
