@@ -7,6 +7,7 @@ import { getPool } from './config/database.js';
 import healthRoutes from './routes/health.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import auctionRoutes from './routes/auction.routes.js';
+import uploadRoutes from './routes/upload.routes.js';
 
 const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
@@ -61,6 +62,7 @@ app.use(
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/auctions', auctionRoutes);
+app.use('/api/uploads', uploadRoutes);
 
 // Catch-all 404 handler for undefined routes
 app.use((req, res) => {

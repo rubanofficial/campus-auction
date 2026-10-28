@@ -36,6 +36,7 @@ export default function CreateAuction() {
 
   // Submission feedback states
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [createdAuction, setCreatedAuction] = useState(null);
 
@@ -64,10 +65,36 @@ export default function CreateAuction() {
     };
   }, [selectedPhotos]);
 
-  // Handle image files selection (local staging preview only)
+  // Handle image files selection with client-side format & size checks (max 4 files, 5MB each)
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
+    setErrorMessage('');
+
+    // Check maximum total allowed images
+    if (selectedPhotos.length + files.length > 4) {
+      setErrorMessage('You can upload a maximum of 4 photos per listing.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    for (const file of files) {
+      if (!allowedMimeTypes.includes(file.type)) {
+        setErrorMessage(
+          `"${file.name}" is not a supported format. Please select JPG, PNG, or WEBP images.`
+        );
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setErrorMessage(
+          `"${file.name}" exceeds the maximum allowed file size of 5 MB.`
+        );
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+    }
 
     const newPhotos = files.map((file) => ({
       file,
@@ -94,7 +121,7 @@ export default function CreateAuction() {
     });
   };
 
-  // Real backend submission handler connecting to POST /api/auctions
+  // Real backend submission handler connecting to POST /api/uploads/images and POST /api/auctions
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
@@ -150,9 +177,46 @@ export default function CreateAuction() {
     }
 
     setIsSubmitting(true);
+    setUploadStatus('');
 
     try {
-      // 2. Dispatch real API request with authenticated session cookies
+      let uploadedImageUrls = [];
+
+      // 2. Upload selected images to Cloudinary via backend API
+      if (selectedPhotos.length > 0) {
+        setUploadStatus('Uploading photos to Cloudinary...');
+        const formData = new FormData();
+        selectedPhotos.forEach((photo) => {
+          formData.append('images', photo.file);
+        });
+
+        const uploadResponse = await fetch(`${apiBaseUrl}/api/uploads/images`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+
+        const uploadData = await uploadResponse.json().catch(() => ({}));
+
+        if (!uploadResponse.ok) {
+          const errorText =
+            uploadData.message ||
+            uploadData.error ||
+            'Failed to upload images. Please check your connection and try again.';
+          setErrorMessage(errorText);
+          setIsSubmitting(false);
+          setUploadStatus('');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+
+        if (Array.isArray(uploadData.images)) {
+          uploadedImageUrls = uploadData.images.map((img) => img.url);
+        }
+      }
+
+      // 3. Dispatch real auction creation API request with Cloudinary URLs
+      setUploadStatus('Publishing auction listing to campus marketplace...');
       const response = await fetch(`${apiBaseUrl}/api/auctions`, {
         method: 'POST',
         credentials: 'include',
@@ -169,8 +233,7 @@ export default function CreateAuction() {
           closingDate,
           closingTime,
           endsAt: endsAtDate.toISOString(),
-          // Cloud storage is not yet connected; do not send local blob URLs to backend
-          images: [],
+          images: uploadedImageUrls,
         }),
       });
 
@@ -178,20 +241,34 @@ export default function CreateAuction() {
 
       if (!response.ok) {
         const errorText =
-          data.message || data.error || 'Failed to create auction. Please check your inputs and try again.';
-        setErrorMessage(errorText);
+          data.message ||
+          data.error ||
+          'Failed to create auction. Please check your inputs and try again.';
+        setErrorMessage(
+          uploadedImageUrls.length > 0
+            ? `Photos were uploaded successfully, but auction creation failed: ${errorText}`
+            : errorText
+        );
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
 
-      // 3. Successful creation confirmed by backend
+      // 4. Successful creation confirmed by backend
       setCreatedAuction(data.auction);
+      // Clean up local preview object URLs
+      selectedPhotos.forEach((photo) => {
+        if (photo.url) URL.revokeObjectURL(photo.url);
+      });
+      setSelectedPhotos([]);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      setErrorMessage('Could not connect to the backend server. Please verify your connection.');
+      setErrorMessage(
+        'Could not connect to the backend server. Please verify your connection.'
+      );
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setIsSubmitting(false);
+      setUploadStatus('');
     }
   };
 
@@ -231,6 +308,31 @@ export default function CreateAuction() {
               <p className="text-xs text-emerald-800 leading-relaxed">
                 Your auction for <strong className="font-semibold text-emerald-950">{createdAuction.title}</strong> is now live in the campus marketplace with starting price <strong className="font-semibold text-emerald-950">₹{createdAuction.startingPrice}</strong>.
               </p>
+              {Array.isArray(createdAuction.images) && createdAuction.images.length > 0 && (
+                <div className="pt-2">
+                  <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider block mb-1.5">
+                    Uploaded Photos ({createdAuction.images.length}):
+                  </span>
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {createdAuction.images.map((imgUrl, idx) => (
+                      <a
+                        key={idx}
+                        href={imgUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="relative w-14 h-14 rounded-lg overflow-hidden border border-emerald-300 hover:ring-2 hover:ring-emerald-500 transition-all flex-shrink-0"
+                        title="Click to view full image in new tab"
+                      >
+                        <img
+                          src={imgUrl}
+                          alt={`Uploaded photo ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <button
               type="button"
@@ -507,11 +609,11 @@ export default function CreateAuction() {
             </span>
           </div>
 
-          {/* Transparent Storage Limitation Notice */}
+          {/* Photo Guidelines Notice */}
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5 text-xs text-slate-600">
-            <Info className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
+            <Info className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
             <p className="leading-relaxed">
-              <strong className="font-semibold text-slate-800">Photo Staging Preview:</strong> Cloud image storage APIs are coming in an upcoming update. Photos selected here are previewed locally in your browser to help you verify item details, but are not uploaded or stored as image URLs. The listing will be published with authentic campus category badges.
+              <strong className="font-semibold text-slate-800">Secure Cloud Photos:</strong> Upload up to 4 high-quality photos (JPG, PNG, WEBP, max 5 MB each). The first photo is set as your auction cover image. All images are securely processed and hosted on Cloudinary.
             </p>
           </div>
 
@@ -630,7 +732,7 @@ export default function CreateAuction() {
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Creating Auction...</span>
+                <span>{uploadStatus || 'Creating Auction...'}</span>
               </>
             ) : (
               <span>Create Auction</span>

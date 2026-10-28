@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Clock,
@@ -172,13 +172,92 @@ const DEMO_ITEMS = {
 
 export default function AuctionDetails() {
   const { id } = useParams();
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
-  // Load item by ID, or fallback to the primary hero sprint bicycle demo item
-  const item = DEMO_ITEMS[id] || {
-    ...DEMO_ITEMS['hero-sprint-bicycle'],
-    id: id || 'hero-sprint-bicycle',
-    title: id ? `Campus Auction Item: ${id.replace(/-/g, ' ')}` : DEMO_ITEMS['hero-sprint-bicycle'].title,
-  };
+  const [dbAuction, setDbAuction] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    // If it is one of the built-in demo items, skip backend fetch
+    if (DEMO_ITEMS[id]) return;
+
+    let isMounted = true;
+    setIsLoading(true);
+
+    fetch(`${apiBaseUrl}/api/auctions/${id}`, {
+      credentials: 'include',
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Auction not found');
+        return res.json();
+      })
+      .then((data) => {
+        if (isMounted && data.auction) {
+          setDbAuction(data.auction);
+        }
+      })
+      .catch(() => {
+        // Fallback gracefully
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id, apiBaseUrl]);
+
+  // Determine item data (demo item or fetched database item)
+  let item;
+  if (DEMO_ITEMS[id]) {
+    item = DEMO_ITEMS[id];
+  } else if (dbAuction) {
+    item = {
+      id: dbAuction.id,
+      title: dbAuction.title,
+      category: dbAuction.category
+        ? dbAuction.category.charAt(0).toUpperCase() + dbAuction.category.slice(1)
+        : 'Item',
+      condition: dbAuction.condition
+        ? dbAuction.condition.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+        : 'Good',
+      startingPrice: dbAuction.startingPrice,
+      currentPrice: dbAuction.currentPrice || dbAuction.startingPrice,
+      minIncrement: dbAuction.minBidIncrement || 50,
+      closingDateTime: dbAuction.endsAt
+        ? new Date(dbAuction.endsAt).toLocaleString('en-IN', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          })
+        : 'Closing soon',
+      closingRemaining: 'Active',
+      bidsCount: dbAuction.bidCount || 0,
+      reserveMet: true,
+      pickupLocation: 'Campus Quad / Hostel Pickup',
+      seller: {
+        name: dbAuction.sellerName || 'Verified Student Seller',
+        department: 'Campus Community Member',
+        room: 'Hostel Resident',
+        rating: '5.0 ★ (Verified Student)',
+        verified: true,
+        memberSince: 'Member',
+      },
+      description: dbAuction.description,
+      gallery:
+        Array.isArray(dbAuction.images) && dbAuction.images.length > 0
+          ? dbAuction.images
+          : [],
+      bidHistory: [],
+      questions: [],
+    };
+  } else {
+    item = {
+      ...DEMO_ITEMS['hero-sprint-bicycle'],
+      id: id || 'hero-sprint-bicycle',
+      title: id ? `Campus Auction Item: ${id.replace(/-/g, ' ')}` : DEMO_ITEMS['hero-sprint-bicycle'].title,
+    };
+  }
 
   const minNextBid = item.currentPrice + item.minIncrement;
 
