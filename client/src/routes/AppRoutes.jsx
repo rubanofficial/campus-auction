@@ -14,11 +14,23 @@ import NotFound from '../pages/NotFound';
 /**
  * ProtectedRoute:
  * Restricts access to authenticated students only.
+ * Prevents protected page rendering while initial session check is unresolved.
  * Redirects unauthenticated users to /login and preserves their intended destination.
  */
 function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[calc(100vh-12rem)] flex flex-col items-center justify-center py-12">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-semibold text-slate-500">Checking campus session...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
@@ -30,10 +42,22 @@ function ProtectedRoute({ children }) {
 /**
  * PublicRoute:
  * Restricts access to unauthenticated users.
+ * Prevents premature redirects while initial session check is unresolved.
  * Redirects already signed-in students to home (/).
  */
 function PublicRoute({ children }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[calc(100vh-12rem)] flex flex-col items-center justify-center py-12">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-semibold text-slate-500">Checking campus session...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />;

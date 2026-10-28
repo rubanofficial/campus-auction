@@ -19,8 +19,8 @@ export default function Navbar({ isSidebarOpen, onToggleSidebar }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login', { replace: true });
   };
   const navLinkClass = ({ isActive }) =>
@@ -133,7 +133,7 @@ export default function Navbar({ isSidebarOpen, onToggleSidebar }) {
               type="button"
               onClick={handleLogout}
               className="p-2 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
-              title="Log Out (Demonstration)"
+              title="Log Out"
               aria-label="Log Out"
             >
               <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />

@@ -1,20 +1,19 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import mongoose from 'mongoose';
 import app from './app.js';
-import { connectDatabase } from './config/database.js';
+import { connectDatabase, closeDatabase } from './config/database.js';
 
 const PORT = process.env.PORT || 5000;
 
 /**
- * Initializes database connection and starts Express HTTP server.
+ * Initializes Neon PostgreSQL database connection and starts Express HTTP server.
  * Handles startup failures strictly without leaving a misleading running server.
  */
 const startServer = async () => {
   try {
-    // 1. Connect to MongoDB Atlas before accepting HTTP requests
-    console.log('[Server] Connecting to MongoDB database...');
+    // 1. Connect to Neon PostgreSQL database before accepting HTTP requests
+    console.log('[Server] Connecting to Neon PostgreSQL database...');
     await connectDatabase();
 
     // 2. Start Express HTTP server
@@ -26,14 +25,14 @@ const startServer = async () => {
 
     // 3. Graceful shutdown handler
     const handleShutdown = async (signal) => {
-      console.log(`\n[Server] ${signal} signal received. Closing HTTP server and database connection...`);
+      console.log(`\n[Server] ${signal} signal received. Closing HTTP server and database pool...`);
       server.close(async () => {
         try {
-          await mongoose.connection.close();
+          await closeDatabase();
           console.log('[Server] Database connection closed. Exiting process.');
           process.exit(0);
         } catch (closeError) {
-          console.error(`[Server] Error closing database connection: ${closeError.message}`);
+          console.error(`[Server] Error closing database pool: ${closeError.message}`);
           process.exit(1);
         }
       });

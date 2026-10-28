@@ -19,8 +19,8 @@ export default function Sidebar({ isOpen, onClose }) {
   const { logout } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     if (window.innerWidth < 1024) onClose();
     navigate('/login', { replace: true });
   };

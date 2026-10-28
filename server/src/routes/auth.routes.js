@@ -1,12 +1,26 @@
 import { Router } from 'express';
-import { registerStudent } from '../controllers/auth.controller.js';
+import {
+  registerStudent,
+  loginStudent,
+  getCurrentUser,
+  logoutUser,
+  getProtectedTest,
+} from '../controllers/auth.controller.js';
+import { requireAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
 /**
- * POST /api/auth/register
- * Register a new student account
+ * Public authentication endpoints
  */
 router.post('/register', registerStudent);
+router.post('/login', loginStudent);
+router.get('/me', getCurrentUser);
+router.post('/logout', logoutUser);
+
+/**
+ * Protected test endpoint (verifies session authentication middleware)
+ */
+router.get('/protected-test', requireAuth, getProtectedTest);
 
 export default router;

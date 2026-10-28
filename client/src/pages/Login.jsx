@@ -6,13 +6,12 @@ import {
   Lock,
   Eye,
   EyeOff,
-  ArrowRight,
   ArrowLeft,
   ShieldCheck,
-  Info,
   CheckCircle2,
   LogIn,
-  X
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
@@ -21,13 +20,6 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, isAuthenticated } = useAuth();
-
-  // If already authenticated, redirect to home
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/', { replace: true });
-    }
-  }, [isAuthenticated, navigate]);
 
   // Destination route after login (defaulting to '/')
   const from = location.state?.from?.pathname || '/';
@@ -39,19 +31,45 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [demoNotice, setDemoNotice] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  // If already authenticated, redirect to destination
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, from]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMessage('');
 
-    // Basic client validation
-    if (!email.trim() || !password) return;
+    // Client validation
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setErrorMessage('Please enter your college email address.');
+      return;
+    }
 
-    // Simulate login via AuthContext
-    login(email, password);
+    if (!password) {
+      setErrorMessage('Please enter your account password.');
+      return;
+    }
 
-    // Redirect to the originally requested route or home
-    navigate(from, { replace: true });
+    setIsSubmitting(true);
+
+    try {
+      await login(trimmedEmail, password);
+      // Auth state update in AuthContext triggers navigation via useEffect
+      navigate(from, { replace: true });
+    } catch (err) {
+      setErrorMessage(
+        err.message || 'Invalid email or password. Please verify your credentials and try again.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -87,7 +105,7 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Successful Simulated Registration Message */}
+        {/* Successful Registration Message Banner */}
         {registrationNotice && (
           <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-start gap-2.5 text-xs animate-in fade-in duration-150">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
@@ -95,13 +113,13 @@ export default function Login() {
           </div>
         )}
 
-        {/* Demonstration Mode Notice Banner */}
-        <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-100 flex items-start gap-2.5 text-xs text-indigo-900">
-          <Info className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
-          <p className="text-[11px] leading-relaxed">
-            <strong className="font-semibold">Demonstration Mode:</strong> Entering your email and password will simulate an authenticated session in memory, allowing you to access all marketplace routes. Real MongoDB auth with JWT will be enabled in upcoming backend steps.
-          </p>
-        </div>
+        {/* Authentication Error Banner */}
+        {errorMessage && (
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5 text-xs animate-in fade-in duration-150">
+            <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+            <p className="font-semibold leading-relaxed">{errorMessage}</p>
+          </div>
+        )}
 
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -119,14 +137,15 @@ export default function Login() {
                 id="collegeEmail"
                 type="email"
                 required
+                disabled={isSubmitting}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="e.g. student@campus.edu or rollno@college.ac.in"
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-colors"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-colors disabled:bg-slate-50 disabled:cursor-not-allowed"
               />
             </div>
             <p className="text-[11px] text-slate-400 mt-1">
-              Use your verified university or college domain email.
+              Use your registered university email address.
             </p>
           </div>
 
@@ -158,13 +177,15 @@ export default function Login() {
                 id="studentPassword"
                 type={showPassword ? 'text' : 'password'}
                 required
+                disabled={isSubmitting}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your account password"
-                className="w-full pl-10 pr-11 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-colors"
+                className="w-full pl-10 pr-11 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-colors disabled:bg-slate-50 disabled:cursor-not-allowed"
               />
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
@@ -184,10 +205,11 @@ export default function Login() {
               <input
                 type="checkbox"
                 checked={rememberMe}
+                disabled={isSubmitting}
                 onChange={(e) => setRememberMe(e.target.checked)}
                 className="rounded text-indigo-600 focus:ring-indigo-500"
               />
-              <span>Remember this device (demo)</span>
+              <span>Remember session on this device</span>
             </label>
           </div>
 
@@ -197,10 +219,13 @@ export default function Login() {
               type="submit"
               variant="primary"
               size="md"
-              icon={LogIn}
-              className="w-full justify-center py-2.5 font-bold shadow-sm"
+              disabled={isSubmitting}
+              icon={isSubmitting ? Loader2 : LogIn}
+              className={`w-full justify-center py-2.5 font-bold shadow-sm ${
+                isSubmitting ? 'cursor-wait opacity-80' : ''
+              }`}
             >
-              Sign In
+              {isSubmitting ? 'Signing In...' : 'Sign In'}
             </Button>
           </div>
         </form>
@@ -221,7 +246,7 @@ export default function Login() {
         {/* Trust Note */}
         <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center gap-2 text-[11px] text-slate-500 text-center">
           <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-          <span>Restricted to students with verified educational email IDs</span>
+          <span>Restricted to students with verified educational credentials</span>
         </div>
       </div>
     </div>
