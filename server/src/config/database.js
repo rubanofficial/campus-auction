@@ -26,12 +26,15 @@ export const getPool = () => {
         rejectUnauthorized: false,
       },
       max: 10,
-      idleTimeoutMillis: 30000,
+      idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 10000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
     });
 
     pool.on('error', (err) => {
-      console.error('[Database] Unexpected error on idle Neon PostgreSQL client:', err.message);
+      // Gracefully handle idle sockets closed by Neon serverless proxy
+      console.warn('[Database] Idle client closed by Neon serverless proxy:', err.message);
       isConnected = false;
     });
   }
@@ -69,13 +72,32 @@ export const connectDatabase = async () => {
 };
 
 /**
- * Execute a parameterized SQL query using the pool.
+ * Execute a parameterized SQL query using the pool with automatic transient retry for Neon serverless resets.
  * @param {string} text - SQL query string with parameter placeholders ($1, $2, etc.)
  * @param {Array} [params] - Query parameter values
  */
 export const query = async (text, params) => {
   const currentPool = getPool();
-  return currentPool.query(text, params);
+  try {
+    return await currentPool.query(text, params);
+  } catch (err) {
+    // Neon serverless proxy drops idle TCP sockets (read ECONNRESET, Connection terminated unexpectedly, etc.)
+    const isTransientError =
+      err.code === 'ECONNRESET' ||
+      err.code === 'EPIPE' ||
+      err.code === '57P01' || // admin_shutdown
+      err.code === '08006' || // connection_failure
+      err.code === '08001' || // unable_to_establish_sqlconnection
+      err.message?.includes('ECONNRESET') ||
+      err.message?.includes('Connection terminated') ||
+      err.message?.includes('socket has been ended');
+
+    if (isTransientError) {
+      console.warn(`[Database] Transient connection reset detected (${err.message}). Retrying query on new socket...`);
+      return await currentPool.query(text, params);
+    }
+    throw err;
+  }
 };
 
 /**

@@ -95,6 +95,14 @@ export const registerStudent = async (req, res) => {
       });
     }
 
+    // Handle PostgreSQL check constraint violations (code 23514)
+    if (error.code === '23514') {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Registration details do not meet requirements. Please provide a valid student email address and name.',
+      });
+    }
+
     console.error(`[Auth] Registration error: ${error.message}`);
     return res.status(500).json({
       error: 'Internal Server Error',
@@ -154,17 +162,8 @@ export const loginStudent = async (req, res) => {
       });
     }
 
-    // 7. Regenerate session ID to mitigate session fixation attacks
-    req.session.regenerate((err) => {
-      if (err) {
-        console.error(`[Auth] Session regeneration error: ${err.message}`);
-        return res.status(500).json({
-          error: 'Internal Server Error',
-          message: 'Failed to establish secure session. Please try again.',
-        });
-      }
-
-      // Store minimal identification data in the server session
+    // 7. Establish session and persist identification data
+    const establishSession = () => {
       req.session.userId = user.id;
       req.session.userRole = user.role;
 
@@ -189,7 +188,18 @@ export const loginStudent = async (req, res) => {
           },
         });
       });
-    });
+    };
+
+    if (typeof req.session?.regenerate === 'function') {
+      req.session.regenerate((err) => {
+        if (err) {
+          console.warn(`[Auth] Session regeneration warning (${err.message}), proceeding with session update...`);
+        }
+        establishSession();
+      });
+    } else {
+      establishSession();
+    }
   } catch (error) {
     console.error(`[Auth] Login error: ${error.message}`);
     return res.status(500).json({
