@@ -5,6 +5,11 @@ import {
   getAuctions,
 } from '../controllers/auction.controller.js';
 import { placeBid, getAuctionBids } from '../controllers/bid.controller.js';
+import {
+  setupOrUpdateAutoBid,
+  getAutoBidStatus,
+  cancelAutoBid,
+} from '../controllers/autoBid.controller.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -38,5 +43,23 @@ router.get('/:id/bids', getAuctionBids);
  * Place a bid on an active auction (requires active student session)
  */
 router.post('/:id/bids', requireAuth, placeBid);
+
+/**
+ * POST /api/auctions/:id/auto-bid
+ * Activate or update automated proxy bidding with a maximum amount
+ */
+router.post('/:id/auto-bid', requireAuth, setupOrUpdateAutoBid);
+
+/**
+ * GET /api/auctions/:id/auto-bid
+ * Retrieve current user's auto-bid configuration for this auction
+ */
+router.get('/:id/auto-bid', requireAuth, getAutoBidStatus);
+
+/**
+ * DELETE /api/auctions/:id/auto-bid
+ * Deactivate automated proxy bidding for this auction
+ */
+router.delete('/:id/auto-bid', requireAuth, cancelAutoBid);
 
 export default router;

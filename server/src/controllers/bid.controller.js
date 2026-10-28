@@ -1,5 +1,6 @@
 import { getPool, query } from '../config/database.js';
 import { broadcastBidUpdate } from '../config/socket.js';
+import { placeInternalBid, processAutoBids } from './autoBid.controller.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_POSTGRES_INTEGER = 2147483647;
@@ -159,95 +160,45 @@ export const placeBid = async (req, res) => {
       }
     }
 
-    // 10. Insert bid record into bids table
-    const insertBidQuery = `
-      INSERT INTO bids (
-        auction_id,
-        bidder_id,
-        amount
-      ) VALUES ($1, $2, $3)
-      RETURNING id, auction_id, bidder_id, amount, created_at;
-    `;
-
-    const bidResult = await client.query(insertBidQuery, [
-      id,
+    // 10. Insert bid record and update auction atomically via shared internal helper
+    const initialBidRecord = await placeInternalBid(
+      client,
+      auction,
       bidderId,
-      parsedAmount,
-    ]);
-    const createdBid = bidResult.rows[0];
+      bidderName,
+      parsedAmount
+    );
 
-    // 11. Update auction current_price, current_leader_id, bid_count, and updated_at
-    const updateAuctionQuery = `
-      UPDATE auctions
-      SET
-        current_price = $1,
-        current_leader_id = $2,
-        bid_count = bid_count + 1,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $3
-      RETURNING
-        id,
-        title,
-        starting_price,
-        min_bid_increment,
-        current_price,
-        current_leader_id,
-        bid_count,
-        starts_at,
-        ends_at,
-        status,
-        updated_at;
-    `;
+    const placedBids = [initialBidRecord];
 
-    const updateResult = await client.query(updateAuctionQuery, [
-      parsedAmount,
-      bidderId,
-      id,
-    ]);
-    const updatedAuction = updateResult.rows[0];
+    // 11. Evaluate active competing auto-bids on this auction
+    await processAutoBids(client, auction, placedBids);
 
     // 12. Commit transaction
     await client.query('COMMIT');
 
-    // 13. Broadcast real-time accepted bid update to all viewers in this auction room
-    broadcastBidUpdate(id, {
-      auctionId: id,
-      bid: {
-        id: createdBid.id,
-        auctionId: createdBid.auction_id,
-        bidderId: createdBid.bidder_id,
-        bidderName: bidderName,
-        amount: createdBid.amount,
-        createdAt: createdBid.created_at,
-      },
-      auction: {
-        id: updatedAuction.id,
-        currentPrice: updatedAuction.current_price,
-        currentLeaderId: updatedAuction.current_leader_id,
-        currentLeaderName: bidderName,
-        bidCount: updatedAuction.bid_count,
-        updatedAt: updatedAuction.updated_at,
-      },
-    });
+    // 13. Broadcast all accepted bid updates to viewers in this auction room after COMMIT
+    for (const item of placedBids) {
+      broadcastBidUpdate(id, item);
+    }
+
+    const latestBid = placedBids[0].bid;
+    const isStillLeader = auction.current_leader_id === bidderId;
 
     return res.status(201).json({
-      message: 'Bid placed successfully.',
-      bid: {
-        id: createdBid.id,
-        auctionId: createdBid.auction_id,
-        bidderId: createdBid.bidder_id,
-        bidderName: bidderName,
-        amount: createdBid.amount,
-        createdAt: createdBid.created_at,
-      },
+      message: isStillLeader
+        ? 'Bid placed successfully.'
+        : 'Bid accepted, but an automated counter-bid immediately regained the lead.',
+      bid: latestBid,
       auction: {
-        id: updatedAuction.id,
-        currentPrice: updatedAuction.current_price,
-        currentLeaderId: updatedAuction.current_leader_id,
-        currentLeaderName: bidderName,
-        bidCount: updatedAuction.bid_count,
-        updatedAt: updatedAuction.updated_at,
+        id: auction.id,
+        currentPrice: auction.current_price,
+        currentLeaderId: auction.current_leader_id,
+        currentLeaderName: isStillLeader ? bidderName : 'Competing Bidder',
+        bidCount: auction.bid_count,
+        updatedAt: auction.updated_at,
       },
+      counterBidsPlaced: placedBids.length - 1,
     });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});

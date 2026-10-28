@@ -22,6 +22,9 @@ import {
   Lock,
   UserCheck,
   Radio,
+  Zap,
+  X,
+  Info,
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
@@ -110,6 +113,42 @@ export default function AuctionDetails() {
   const [bidError, setBidError] = useState(null);
   const [bidSuccess, setBidSuccess] = useState(null);
   const [isLiveConnected, setIsLiveConnected] = useState(false);
+
+  // Auto Bid State
+  const [autoBidConfig, setAutoBidConfig] = useState(null);
+  const [isLoadingAutoBid, setIsLoadingAutoBid] = useState(false);
+  const [isAutoBidModalOpen, setIsAutoBidModalOpen] = useState(false);
+  const [autoBidMaxAmount, setAutoBidMaxAmount] = useState('');
+  const [isSubmittingAutoBid, setIsSubmittingAutoBid] = useState(false);
+  const [isCancellingAutoBid, setIsCancellingAutoBid] = useState(false);
+  const [autoBidError, setAutoBidError] = useState(null);
+  const [autoBidSuccess, setAutoBidSuccess] = useState(null);
+
+  // Refresh user's own Auto Bid status
+  const fetchAutoBidStatus = useCallback(async () => {
+    if (!isAuthenticated || !id) {
+      setAutoBidConfig(null);
+      return;
+    }
+    try {
+      setIsLoadingAutoBid(true);
+      const res = await fetch(`${apiBaseUrl}/api/auctions/${id}/auto-bid`, {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.configured && data.autoBid) {
+          setAutoBidConfig(data.autoBid);
+        } else {
+          setAutoBidConfig(null);
+        }
+      }
+    } catch (e) {
+      console.warn('[AuctionDetails] Failed to fetch auto-bid status:', e.message);
+    } finally {
+      setIsLoadingAutoBid(false);
+    }
+  }, [id, isAuthenticated, apiBaseUrl]);
 
   // Refresh auction and bid data from authoritative HTTP APIs
   const refreshAuctionData = useCallback(async () => {
@@ -235,6 +274,11 @@ export default function AuctionDetails() {
           return [payload.bid, ...prev];
         });
       }
+
+      // Re-synchronize auto-bid status if user is signed in
+      if (isAuthenticated) {
+        fetchAutoBidStatus();
+      }
     };
 
     socket.on('connect', onConnect);
@@ -248,7 +292,12 @@ export default function AuctionDetails() {
       socket.off('disconnect', onDisconnect);
       socket.off('auction:bid-updated', onBidUpdated);
     };
-  }, [id, refreshAuctionData]);
+  }, [id, refreshAuctionData, isAuthenticated, fetchAutoBidStatus]);
+
+  // Synchronize user's Auto Bid status when authentication or auction ID changes
+  useEffect(() => {
+    fetchAutoBidStatus();
+  }, [fetchAutoBidStatus]);
 
   // Live countdown timer ticker
   useEffect(() => {
@@ -417,10 +466,110 @@ export default function AuctionDetails() {
           setBids((prev) => [data.bid, ...prev]);
         }
       }
+
+      // Synchronize auto-bid status
+      fetchAutoBidStatus();
     } catch (networkError) {
       setBidError('Unable to connect to campus auction server. Please check your connection and try again.');
     } finally {
       setIsPlacingBid(false);
+    }
+  };
+
+  // Handle Auto Bid activation/update submission
+  const handleAutoBidSubmit = async (e) => {
+    e.preventDefault();
+    setAutoBidError(null);
+    setAutoBidSuccess(null);
+
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: location } });
+      return;
+    }
+
+    if (isSeller) {
+      setAutoBidError('Sellers are not permitted to configure Auto Bid on their own listings.');
+      return;
+    }
+
+    if (isClosed) {
+      setAutoBidError('This auction has ended and is closed for bidding.');
+      return;
+    }
+
+    const parsedMax = parseInt(autoBidMaxAmount, 10);
+    if (isNaN(parsedMax) || parsedMax <= 0) {
+      setAutoBidError('Please enter a valid positive whole-rupee maximum limit.');
+      return;
+    }
+
+    const requiredMin = isUserLeading ? currentPrice : minNextBid;
+    if (parsedMax < requiredMin) {
+      setAutoBidError(
+        isUserLeading
+          ? `Your maximum limit cannot be lower than your current leading bid of ₹${currentPrice.toLocaleString('en-IN')}.`
+          : `Maximum bid must be at least ₹${minNextBid.toLocaleString('en-IN')} to participate.`
+      );
+      return;
+    }
+
+    setIsSubmittingAutoBid(true);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/auctions/${id}/auto-bid`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ maxAmount: parsedMax }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setAutoBidError(data.message || data.error || 'Failed to activate Auto Bid. Please try again.');
+        setIsSubmittingAutoBid(false);
+        return;
+      }
+
+      setAutoBidConfig(data.autoBid);
+      setBidSuccess(`Auto Bid activated successfully with a maximum limit of ₹${parsedMax.toLocaleString('en-IN')}!`);
+      setIsAutoBidModalOpen(false);
+
+      // Refresh auction and bid history
+      await refreshAuctionData();
+    } catch {
+      setAutoBidError('Unable to connect to campus auction server. Please check your connection and try again.');
+    } finally {
+      setIsSubmittingAutoBid(false);
+    }
+  };
+
+  // Handle Auto Bid deactivation
+  const handleCancelAutoBid = async () => {
+    setAutoBidError(null);
+    setAutoBidSuccess(null);
+    setIsCancellingAutoBid(true);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/auctions/${id}/auto-bid`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        setAutoBidConfig(null);
+        setBidSuccess('Auto Bid has been deactivated for this auction.');
+      } else {
+        setBidError(data.message || 'Failed to deactivate Auto Bid.');
+      }
+    } catch {
+      setBidError('Failed to deactivate Auto Bid due to network error.');
+    } finally {
+      setIsCancellingAutoBid(false);
     }
   };
 
@@ -780,7 +929,7 @@ export default function AuctionDetails() {
                       type="submit"
                       variant="primary"
                       disabled={isPlacingBid || !bidAmount}
-                      className="px-5 shrink-0"
+                      className="px-4 shrink-0 font-bold"
                     >
                       {isPlacingBid ? (
                         <>
@@ -791,7 +940,74 @@ export default function AuctionDetails() {
                         'Place Bid'
                       )}
                     </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        if (!isAuthenticated) {
+                          navigate('/login', { state: { from: location } });
+                          return;
+                        }
+                        setAutoBidError(null);
+                        setAutoBidSuccess(null);
+                        const suggested = autoBidConfig?.maxAmount || (minNextBid + minIncrement * 2);
+                        setAutoBidMaxAmount(String(suggested));
+                        setIsAutoBidModalOpen(true);
+                      }}
+                      disabled={isPlacingBid || isSeller || isClosed}
+                      className="px-3.5 shrink-0 border-amber-300 bg-amber-50/70 hover:bg-amber-100/80 text-amber-900 font-bold"
+                    >
+                      <Zap className="w-3.5 h-3.5 mr-1 text-amber-600 fill-amber-500" />
+                      Auto Bid
+                    </Button>
                   </div>
+
+                  {/* Active Auto Bid Status Display */}
+                  {autoBidConfig && autoBidConfig.isActive && (
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 shadow-xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-2 w-2 relative">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          </span>
+                          <span className="text-xs font-bold text-amber-950 flex items-center gap-1">
+                            <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-600" />
+                            Auto Bid Active
+                          </span>
+                        </div>
+                        <span className="text-xs font-bold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-200">
+                          Up to ₹{autoBidConfig.maxAmount?.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-amber-800 leading-relaxed">
+                        The system will automatically defend your position up to ₹{autoBidConfig.maxAmount?.toLocaleString('en-IN')}.
+                        {isUserLeading ? ' You currently hold the highest bid.' : ' Waiting for the next competing bid.'}
+                      </p>
+                      <div className="flex items-center justify-between pt-1 border-t border-amber-200/60 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAutoBidError(null);
+                            setAutoBidSuccess(null);
+                            setAutoBidMaxAmount(String(autoBidConfig.maxAmount || minNextBid));
+                            setIsAutoBidModalOpen(true);
+                          }}
+                          className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline underline-offset-2"
+                        >
+                          Change Max Limit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelAutoBid}
+                          disabled={isCancellingAutoBid}
+                          className="text-[11px] font-semibold text-rose-700 hover:text-rose-800 hover:bg-rose-100/60 px-2 py-0.5 rounded transition-colors"
+                        >
+                          {isCancellingAutoBid ? 'Deactivating...' : 'Deactivate Auto Bid'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Minimum Acceptable Bid Hint */}
                   <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
@@ -910,6 +1126,157 @@ export default function AuctionDetails() {
           </div>
         </div>
       </div>
+
+      {/* Auto Bid Configuration Modal */}
+      {isAutoBidModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div
+            className="relative w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 sm:p-7 space-y-5 animate-in zoom-in-95 duration-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="auto-bid-modal-title"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                  <Zap className="w-4 h-4 fill-amber-500" />
+                </div>
+                <div>
+                  <h3 id="auto-bid-modal-title" className="text-sm font-bold text-slate-900">
+                    Configure Auto Bid
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Automated proxy bidding assistant</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isSubmittingAutoBid) setIsAutoBidModalOpen(false);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors"
+                aria-label="Close dialog"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Explanation Banner */}
+            <div className="p-3.5 rounded-2xl bg-indigo-50/80 border border-indigo-100 text-indigo-950 space-y-1.5 text-xs">
+              <div className="flex items-center gap-1.5 font-bold text-indigo-900">
+                <Info className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>How Auto Bid works</span>
+              </div>
+              <p className="text-[11px] text-indigo-800 leading-relaxed">
+                Set your maximum budget. When another student places a bid, the system will automatically place the minimum necessary response to keep you in the lead, but will <strong>never exceed</strong> your maximum limit.
+              </p>
+            </div>
+
+            {/* Pricing Context */}
+            <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs">
+              <div>
+                <span className="text-[11px] text-slate-400 font-medium">Current Price:</span>
+                <p className="font-bold text-slate-800 text-sm">₹{currentPrice.toLocaleString('en-IN')}</p>
+              </div>
+              <div>
+                <span className="text-[11px] text-slate-400 font-medium">Minimum Required:</span>
+                <p className="font-bold text-indigo-600 text-sm">
+                  ₹{(isUserLeading ? currentPrice : minNextBid).toLocaleString('en-IN')}
+                </p>
+              </div>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleAutoBidSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label htmlFor="autoBidMaxInput" className="block text-xs font-bold text-slate-700">
+                  Your Maximum Bid Limit (₹)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">
+                    ₹
+                  </span>
+                  <input
+                    id="autoBidMaxInput"
+                    type="number"
+                    step="1"
+                    min={isUserLeading ? currentPrice : minNextBid}
+                    value={autoBidMaxAmount}
+                    onChange={(e) => {
+                      setAutoBidMaxAmount(e.target.value);
+                      if (autoBidError) setAutoBidError(null);
+                    }}
+                    disabled={isSubmittingAutoBid}
+                    placeholder={String(minNextBid + minIncrement * 2)}
+                    className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 text-sm font-bold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-slate-50"
+                    autoFocus
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Bids are incremented in whole multiples of ₹{minIncrement} only when challenged.
+                </p>
+              </div>
+
+              {/* Quick Increment Buttons */}
+              <div className="flex items-center gap-2 pt-0.5">
+                <span className="text-[11px] text-slate-400 font-medium">Add to min:</span>
+                {[100, 250, 500].map((inc) => (
+                  <button
+                    key={inc}
+                    type="button"
+                    onClick={() => {
+                      const base = isUserLeading ? currentPrice : minNextBid;
+                      setAutoBidMaxAmount(String(base + inc));
+                      if (autoBidError) setAutoBidError(null);
+                    }}
+                    disabled={isSubmittingAutoBid}
+                    className="text-[11px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors"
+                  >
+                    +₹{inc}
+                  </button>
+                ))}
+              </div>
+
+              {/* Error Alert inside Modal */}
+              {autoBidError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2 text-xs">
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                  <p className="font-semibold leading-relaxed">{autoBidError}</p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsAutoBidModalOpen(false)}
+                  disabled={isSubmittingAutoBid}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={isSubmittingAutoBid || !autoBidMaxAmount}
+                  className="px-5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 border-none font-bold text-white shadow-sm"
+                >
+                  {isSubmittingAutoBid ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                      Configuring...
+                    </>
+                  ) : (
+                    'Confirm Auto Bid'
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
