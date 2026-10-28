@@ -6,6 +6,7 @@ import connectPgSimple from 'connect-pg-simple';
 import { getPool } from './config/database.js';
 import healthRoutes from './routes/health.routes.js';
 import authRoutes from './routes/auth.routes.js';
+import auctionRoutes from './routes/auction.routes.js';
 
 const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
@@ -59,6 +60,7 @@ app.use(
 // Mount API routes
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/auctions', auctionRoutes);
 
 // Catch-all 404 handler for undefined routes
 app.use((req, res) => {
