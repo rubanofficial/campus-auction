@@ -301,6 +301,3 @@ Developed for the Campus Marketplace Hackathon with paired human-agent pairing o
 
 ---
 
-## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
