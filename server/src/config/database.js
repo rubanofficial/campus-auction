@@ -2,7 +2,8 @@ import mongoose from 'mongoose';
 
 /**
  * Connect to MongoDB database using Mongoose
- * Reads MONGODB_URI from environment variables and fails clearly if missing
+ * Reads MONGODB_URI from environment variables and fails clearly if missing.
+ * Connects securely without logging credentials or connection strings.
  */
 export const connectDatabase = async () => {
   const uri = process.env.MONGODB_URI;
@@ -13,10 +14,11 @@ export const connectDatabase = async () => {
 
   try {
     const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000,
+      dbName: 'campus-auction',
+      serverSelectionTimeoutMS: 8000,
     });
 
-    console.log(`[Database] MongoDB connected: ${conn.connection.host}`);
+    console.log(`[Database] MongoDB connected successfully: ${conn.connection.host}`);
     return conn;
   } catch (error) {
     console.error(`[Database] MongoDB connection error: ${error.message}`);

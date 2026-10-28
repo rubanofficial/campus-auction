@@ -2,6 +2,7 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import healthRoutes from './routes/health.routes.js';
+import authRoutes from './routes/auth.routes.js';
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use(express.json());
 
 // Mount API routes
 app.use('/api/health', healthRoutes);
+app.use('/api/auth', authRoutes);
 
 // Catch-all 404 handler for undefined routes
 app.use((req, res) => {
@@ -35,13 +37,11 @@ app.use((req, res) => {
 // Centralized error handling middleware
 app.use((err, req, res, next) => {
   const statusCode = err.status || err.statusCode || 500;
-  const isProduction = process.env.NODE_ENV === 'production';
 
   res.status(statusCode).json({
     error: err.name || 'Internal Server Error',
     message: err.message || 'An unexpected error occurred',
     timestamp: new Date().toISOString(),
-    ...(isProduction ? {} : { stack: err.stack }),
   });
 });
 
