@@ -10,6 +10,7 @@ import {
   getAutoBidStatus,
   cancelAutoBid,
 } from '../controllers/autoBid.controller.js';
+import { getUserActivity } from '../controllers/activity.controller.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -19,6 +20,12 @@ const router = Router();
  * Browse, search, and filter active auctions
  */
 router.get('/', getAuctions);
+
+/**
+ * GET /api/auctions/user/activity
+ * Retrieve the authenticated user's activity dashboard
+ */
+router.get('/user/activity', requireAuth, getUserActivity);
 
 /**
  * POST /api/auctions

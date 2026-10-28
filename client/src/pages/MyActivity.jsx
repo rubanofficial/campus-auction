@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Tag,
@@ -9,162 +9,37 @@ import {
   MapPin,
   Calendar,
   AlertCircle,
-  ArrowRight,
   PlusCircle,
   Compass,
   Bike,
   Calculator,
   BookOpen,
   Laptop,
-  Headphones,
-  Lamp,
-  Info,
-  ShieldCheck,
-  TrendingUp,
-  PackageOpen
+  PackageOpen,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 
-// Static demonstration activity data
-const DEMO_ACTIVITY_DATA = {
-  listings: [
-    {
-      id: 'hero-sprint-bicycle',
-      title: 'Hero Sprint Pro 26T Mountain Bicycle (Single Speed)',
-      category: 'Cycles',
-      currentPrice: 3200,
-      startingPrice: 2400,
-      totalBids: 9,
-      closingLabel: 'Closes in 3h 15m',
-      status: 'Active',
-      imageUrl: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=600&q=80',
-      fallbackIcon: Bike,
-      pickupSpot: 'Hostel 4 Cycle Stand',
-      actionText: 'View Auction',
-      actionHref: '/auctions/hero-sprint-bicycle',
-    },
-    {
-      id: 'philips-rechargeable-desk-lamp',
-      title: 'Philips Rechargeable LED Desk Study Lamp (EyeCare)',
-      category: 'Electronics',
-      currentPrice: 380,
-      startingPrice: 300,
-      totalBids: 7,
-      closingLabel: 'Closes in 2h 50m',
-      status: 'Awaiting Seller Approval',
-      imageUrl: 'https://images.unsplash.com/photo-1534353436294-0dbd4bdac845?auto=format&fit=crop&w=600&q=80',
-      fallbackIcon: Lamp,
-      pickupSpot: 'Boys Hostel Block B',
-      actionText: 'View Auction',
-      actionHref: '/auctions/philips-rechargeable-desk-lamp',
-    },
-  ],
-  bids: [
-    {
-      id: 'casio-fx991es-plus',
-      title: 'Casio FX-991ES Plus Scientific Calculator (2nd Edition)',
-      category: 'Calculators',
-      myBid: 850,
-      currentPrice: 850,
-      totalBids: 14,
-      closingLabel: 'Ends in 1h 45m',
-      status: 'Leading',
-      imageUrl: 'https://images.unsplash.com/photo-1594980596870-8aa52a78d8cd?auto=format&fit=crop&w=600&q=80',
-      fallbackIcon: Calculator,
-      pickupSpot: 'Library Front Lawn',
-      actionText: 'View Auction',
-      actionHref: '/auctions/casio-fx991es-plus',
-    },
-    {
-      id: 'boat-rockerz-550',
-      title: 'boAt Rockerz 550 Over-Ear Wireless Bluetooth Headphones',
-      category: 'Electronics',
-      myBid: 850,
-      currentPrice: 950,
-      totalBids: 11,
-      closingLabel: 'Ends in 11h 20m',
-      status: 'Outbid',
-      imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80',
-      fallbackIcon: Headphones,
-      pickupSpot: 'Dining Hall Annex',
-      actionText: 'Increase Bid',
-      actionHref: '/auctions/boat-rockerz-550',
-    },
-    {
-      id: 'engineering-mathematics-grewal',
-      title: 'Higher Engineering Mathematics - B.S. Grewal (44th Ed.)',
-      category: 'Books',
-      myBid: 420,
-      currentPrice: 420,
-      totalBids: 6,
-      closingLabel: 'Ends in 5h 30m',
-      status: 'Leading',
-      imageUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=600&q=80',
-      fallbackIcon: BookOpen,
-      pickupSpot: 'Mechanical Dept. Quad',
-      actionText: 'View Auction',
-      actionHref: '/auctions/engineering-mathematics-grewal',
-    },
-  ],
-  won: [
-    {
-      id: 'aluminum-laptop-stand',
-      title: 'Foldable Ergonomic Aluminum Laptop Stand (Multi-Angle)',
-      category: 'Electronics',
-      winningBid: 650,
-      closedAt: 'Closed Yesterday at 7:00 PM',
-      status: 'Reserved',
-      imageUrl: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?auto=format&fit=crop&w=600&q=80',
-      fallbackIcon: Laptop,
-      pickupSpot: 'Student Activity Center Entrance',
-      actionText: 'Pickup Details',
-      actionHref: '/auctions/aluminum-laptop-stand',
-    },
-    {
-      id: 'casio-fx82ms-calculator',
-      title: 'Casio FX-82MS Scientific Calculator with Slide Case',
-      category: 'Calculators',
-      winningBid: 450,
-      closedAt: 'Closed 2 days ago',
-      status: 'Pickup Failed',
-      imageUrl: 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=600&q=80',
-      fallbackIcon: Calculator,
-      pickupSpot: 'Hostel 2 Main Gate',
-      actionText: 'Contact Seller',
-      actionHref: '/auctions/casio-fx82ms-calculator',
-    },
-  ],
-  sales: [
-    {
-      id: 'btwin-riverside-hybrid',
-      title: 'Btwin Riverside 120 Hybrid Geared Bicycle (Large Frame)',
-      category: 'Cycles',
-      finalPrice: 4800,
-      completedAt: 'Completed on Oct 24, 2026',
-      buyerNote: 'Handed over to Kunal R. (Hostel 1)',
-      status: 'Sold',
-      imageUrl: 'https://images.unsplash.com/photo-1532298229144-0ec0c57515c7?auto=format&fit=crop&w=600&q=80',
-      fallbackIcon: Bike,
-      pickupSpot: 'Main Campus Gate',
-      actionText: 'View Record',
-      actionHref: '/auctions/btwin-riverside-hybrid',
-    },
-    {
-      id: 'yonex-badminton-racket',
-      title: 'Yonex Nanoray 10F Carbon Badminton Racket with Cover',
-      category: 'Other',
-      finalPrice: 850,
-      completedAt: 'Closed on Oct 20, 2026',
-      buyerNote: 'Reserve price not met by bidders',
-      status: 'Unsold',
-      imageUrl: '',
-      fallbackIcon: Tag,
-      pickupSpot: 'Sports Complex',
-      actionText: 'Relist Item',
-      actionHref: '/auctions/create',
-    },
-  ],
+// Category icon fallback helper
+const getCategoryIcon = (category) => {
+  switch (category?.toLowerCase()) {
+    case 'cycle':
+    case 'cycles':
+      return Bike;
+    case 'calculator':
+    case 'calculators':
+      return Calculator;
+    case 'books':
+    case 'book':
+      return BookOpen;
+    case 'electronics':
+    case 'electronic':
+      return Laptop;
+    default:
+      return Tag;
+  }
 };
 
 // Status badge styling helper
@@ -175,9 +50,10 @@ function StatusBadge({ status }) {
     'Outbid': 'bg-rose-50 text-rose-700 border-rose-200',
     'Awaiting Seller Approval': 'bg-amber-50 text-amber-800 border-amber-200',
     'Reserved': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    'Completed': 'bg-teal-50 text-teal-800 border-teal-200',
     'Sold': 'bg-teal-50 text-teal-800 border-teal-200',
     'Unsold': 'bg-slate-100 text-slate-700 border-slate-200',
-    'Pickup Failed': 'bg-rose-50 text-rose-700 border-rose-200',
+    'Cancelled': 'bg-slate-100 text-slate-600 border-slate-200',
   };
 
   const badgeStyle = styles[status] || 'bg-slate-100 text-slate-700 border-slate-200';
@@ -192,7 +68,7 @@ function StatusBadge({ status }) {
 // Single activity item row/card component with thumbnail fallback
 function ActivityCard({ item, type }) {
   const [imageError, setImageError] = useState(!item.imageUrl);
-  const FallbackIcon = item.fallbackIcon || Tag;
+  const FallbackIcon = getCategoryIcon(item.category);
 
   return (
     <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-slate-300 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all">
@@ -273,20 +149,20 @@ function ActivityCard({ item, type }) {
           <div className="text-lg sm:text-xl font-extrabold text-slate-900">
             {type === 'bids' ? (
               <span>
-                ₹{item.myBid.toLocaleString('en-IN')}{' '}
+                ₹{Number(item.myBid || 0).toLocaleString('en-IN')}{' '}
                 <span className="text-xs font-normal text-slate-400">
-                  / ₹{item.currentPrice.toLocaleString('en-IN')}
+                  / ₹{Number(item.currentPrice || 0).toLocaleString('en-IN')}
                 </span>
               </span>
             ) : type === 'won' ? (
-              <span>₹{item.winningBid.toLocaleString('en-IN')}</span>
+              <span>₹{Number(item.winningBid || 0).toLocaleString('en-IN')}</span>
             ) : type === 'sales' ? (
-              <span>₹{item.finalPrice.toLocaleString('en-IN')}</span>
+              <span>₹{Number(item.finalPrice || 0).toLocaleString('en-IN')}</span>
             ) : (
               <span>
-                ₹{item.currentPrice.toLocaleString('en-IN')}{' '}
+                ₹{Number(item.currentPrice || 0).toLocaleString('en-IN')}{' '}
                 <span className="text-xs font-normal text-slate-400">
-                  ({item.totalBids} bids)
+                  ({item.totalBids || 0} {item.totalBids === 1 ? 'bid' : 'bids'})
                 </span>
               </span>
             )}
@@ -299,7 +175,7 @@ function ActivityCard({ item, type }) {
             to={item.actionHref || '/auctions'}
             variant="outline"
             size="sm"
-            className="text-xs"
+            className="text-xs font-semibold"
           >
             {item.actionText}
           </Button>
@@ -335,13 +211,72 @@ function EmptyState({ title, description, actionText, actionHref }) {
 
 export default function MyActivity() {
   const [activeTab, setActiveTab] = useState('listings');
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [activityData, setActivityData] = useState({
+    summary: {
+      activeListings: 0,
+      activeBids: 0,
+      auctionsWon: 0,
+      completedSales: 0,
+    },
+    listings: [],
+    bids: [],
+    won: [],
+    sales: [],
+  });
 
-  // Static summary card values (Clearly treated as demonstration metrics)
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
+  // Fetch real activity data from backend
+  const fetchActivity = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/activity`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'Failed to load activity records.');
+      }
+
+      setActivityData({
+        summary: data.summary || {
+          activeListings: 0,
+          activeBids: 0,
+          auctionsWon: 0,
+          completedSales: 0,
+        },
+        listings: Array.isArray(data.listings) ? data.listings : [],
+        bids: Array.isArray(data.bids) ? data.bids : [],
+        won: Array.isArray(data.won) ? data.won : [],
+        sales: Array.isArray(data.sales) ? data.sales : [],
+      });
+    } catch (err) {
+      console.error('[MyActivity] Error loading activity:', err.message);
+      setErrorMessage(err.message || 'Unable to connect to campus server. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [apiBaseUrl]);
+
+  useEffect(() => {
+    fetchActivity();
+  }, [fetchActivity]);
+
+  // Dynamic summary card metrics
   const summaryCards = [
     {
       id: 'listings',
       label: 'Active Listings',
-      count: 2,
+      count: activityData.summary.activeListings || 0,
       icon: Tag,
       color: 'text-indigo-600 bg-indigo-50',
       description: 'Items you currently have listed',
@@ -349,7 +284,7 @@ export default function MyActivity() {
     {
       id: 'bids',
       label: 'Active Bids',
-      count: 3,
+      count: activityData.summary.activeBids || 0,
       icon: Gavel,
       color: 'text-amber-600 bg-amber-50',
       description: 'Auctions you are participating in',
@@ -357,7 +292,7 @@ export default function MyActivity() {
     {
       id: 'won',
       label: 'Auctions Won',
-      count: 2,
+      count: activityData.summary.auctionsWon || 0,
       icon: Trophy,
       color: 'text-emerald-600 bg-emerald-50',
       description: 'Items won awaiting pickup',
@@ -365,22 +300,52 @@ export default function MyActivity() {
     {
       id: 'sales',
       label: 'Completed Sales',
-      count: 4,
+      count: activityData.summary.completedSales || 0,
       icon: CheckCircle2,
       color: 'text-teal-600 bg-teal-50',
       description: 'Successfully handed-over sales',
     },
   ];
 
-  // Tab configurations
+  // Tab configurations with live counts
   const tabs = [
-    { id: 'listings', label: 'My Listings', count: DEMO_ACTIVITY_DATA.listings.length },
-    { id: 'bids', label: 'My Bids', count: DEMO_ACTIVITY_DATA.bids.length },
-    { id: 'won', label: 'Won Auctions', count: DEMO_ACTIVITY_DATA.won.length },
-    { id: 'sales', label: 'Sales History', count: DEMO_ACTIVITY_DATA.sales.length },
+    { id: 'listings', label: 'My Listings', count: activityData.listings.length },
+    { id: 'bids', label: 'My Bids', count: activityData.bids.length },
+    { id: 'won', label: 'Won Auctions', count: activityData.won.length },
+    { id: 'sales', label: 'Sales History', count: activityData.sales.length },
   ];
 
-  const currentItems = DEMO_ACTIVITY_DATA[activeTab] || [];
+  const currentItems = activityData[activeTab] || [];
+
+  // Empty state configurations per tab
+  const emptyStateConfig = {
+    listings: {
+      title: 'No Listings Found',
+      description: "You haven't listed any items for auction yet. Start selling unused campus gear, calculators, or textbooks.",
+      actionText: 'List New Item',
+      actionHref: '/auctions/create',
+    },
+    bids: {
+      title: 'No Active Bids',
+      description: "You haven't placed any bids on active listings yet. Explore verified student auctions to start bidding.",
+      actionText: 'Browse Live Auctions',
+      actionHref: '/auctions',
+    },
+    won: {
+      title: 'No Won Auctions',
+      description: "You have not won any auctions yet. When you hold the highest bid on a closed listing, your item will appear here for pickup coordination.",
+      actionText: 'Explore Auctions',
+      actionHref: '/auctions',
+    },
+    sales: {
+      title: 'No Completed Sales',
+      description: "You have not completed any sale handovers yet. Once an auction closes and the item handover is completed, your sale record will appear here.",
+      actionText: 'List an Item',
+      actionHref: '/auctions/create',
+    },
+  };
+
+  const emptyConfig = emptyStateConfig[activeTab] || emptyStateConfig.listings;
 
   return (
     <div className="space-y-8">
@@ -401,13 +366,23 @@ export default function MyActivity() {
         }
       />
 
-      {/* Demonstration Banner */}
-      <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-100 flex items-start gap-2.5 text-xs text-indigo-900">
-        <Info className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
-        <p>
-          <span className="font-semibold">Demonstration Mode:</span> Showing sample activity records and statistics for UI validation. Prices are formatted in Indian Rupees (₹).
-        </p>
-      </div>
+      {/* Error Banner with Retry */}
+      {errorMessage && (
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 flex items-center justify-between gap-3 text-xs sm:text-sm animate-in fade-in duration-150">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+            <span className="font-semibold">{errorMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={fetchActivity}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-rose-700 font-bold hover:bg-rose-50 transition-colors shadow-2xs"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Retry</span>
+          </button>
+        </div>
+      )}
 
       {/* 2. Four Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -435,7 +410,11 @@ export default function MyActivity() {
                 </div>
               </div>
               <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">
-                {card.count}
+                {isLoading ? (
+                  <span className="inline-block w-8 h-7 bg-slate-100 rounded-md animate-pulse" />
+                ) : (
+                  card.count
+                )}
               </div>
               <p className="text-[11px] text-slate-400 mt-1 truncate">
                 {card.description}
@@ -471,7 +450,7 @@ export default function MyActivity() {
                         : 'bg-slate-100 text-slate-500'
                     }`}
                   >
-                    {tab.count}
+                    {isLoading ? '...' : tab.count}
                   </span>
                 </button>
               );
@@ -480,20 +459,27 @@ export default function MyActivity() {
         </div>
 
         {/* 4. Activity List / Cards for Active Tab */}
-        <div className="space-y-3">
-          {currentItems.length > 0 ? (
-            currentItems.map((item) => (
-              <ActivityCard key={item.id} item={item} type={activeTab} />
-            ))
-          ) : (
-            <EmptyState
-              title={`No ${tabs.find((t) => t.id === activeTab)?.label} Found`}
-              description="There are currently no demonstration records for this activity category."
-              actionText="Browse Auctions"
-              actionHref="/auctions"
-            />
-          )}
-        </div>
+        {isLoading ? (
+          <div className="py-20 text-center space-y-3">
+            <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mx-auto" />
+            <p className="text-xs text-slate-500 font-medium">Loading your activity records...</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {currentItems.length > 0 ? (
+              currentItems.map((item) => (
+                <ActivityCard key={item.id} item={item} type={activeTab} />
+              ))
+            ) : (
+              <EmptyState
+                title={emptyConfig.title}
+                description={emptyConfig.description}
+                actionText={emptyConfig.actionText}
+                actionHref={emptyConfig.actionHref}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
