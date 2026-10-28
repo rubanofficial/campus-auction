@@ -351,8 +351,14 @@ export const setupOrUpdateAutoBid = async (req, res) => {
       broadcastBidUpdate(id, item);
     }
 
+    const winningBidRecord = placedBids[placedBids.length - 1];
+    const isLeading = auction.current_leader_id === userId;
+    const finalLeaderName = winningBidRecord?.bid?.bidderName || userDisplayName;
+
     return res.status(200).json({
-      message: 'Auto Bid activated successfully.',
+      message: isLeading
+        ? 'Auto Bid activated successfully. You are now the leading bidder.'
+        : `Auto Bid activated, but ${finalLeaderName} currently holds the lead at ₹${auction.current_price.toLocaleString('en-IN')}.`,
       autoBid: {
         id: autoBidRecord.id,
         auctionId: autoBidRecord.auction_id,
@@ -361,9 +367,22 @@ export const setupOrUpdateAutoBid = async (req, res) => {
         createdAt: autoBidRecord.created_at,
         updatedAt: autoBidRecord.updated_at,
       },
+      auction: {
+        id: auction.id,
+        currentPrice: auction.current_price,
+        current_price: auction.current_price,
+        currentLeaderId: auction.current_leader_id,
+        current_leader_id: auction.current_leader_id,
+        currentLeaderName: finalLeaderName,
+        current_leader_name: finalLeaderName,
+        bidCount: auction.bid_count,
+        bid_count: auction.bid_count,
+        updatedAt: auction.updated_at,
+        updated_at: auction.updated_at,
+      },
       bidsPlacedCount: placedBids.length,
       currentPrice: auction.current_price,
-      isLeading: auction.current_leader_id === userId,
+      isLeading,
     });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});

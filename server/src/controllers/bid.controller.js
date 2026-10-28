@@ -182,21 +182,29 @@ export const placeBid = async (req, res) => {
       broadcastBidUpdate(id, item);
     }
 
-    const latestBid = placedBids[0].bid;
+    const winningBidRecord = placedBids[placedBids.length - 1];
     const isStillLeader = auction.current_leader_id === bidderId;
+    const finalLeaderName = winningBidRecord?.bid?.bidderName || bidderName;
 
     return res.status(201).json({
       message: isStillLeader
-        ? 'Bid placed successfully.'
-        : 'Bid accepted, but an automated counter-bid immediately regained the lead.',
-      bid: latestBid,
+        ? `Your bid of ₹${parsedAmount.toLocaleString('en-IN')} was placed successfully! You are now the leading bidder.`
+        : `Your bid of ₹${parsedAmount.toLocaleString('en-IN')} was placed, but ${finalLeaderName} automatically counter-bid ₹${auction.current_price.toLocaleString('en-IN')} to regain the lead.`,
+      bid: winningBidRecord?.bid || placedBids[0].bid,
+      userBid: placedBids[0].bid,
+      isLeader: isStillLeader,
       auction: {
         id: auction.id,
         currentPrice: auction.current_price,
+        current_price: auction.current_price,
         currentLeaderId: auction.current_leader_id,
-        currentLeaderName: isStillLeader ? bidderName : 'Competing Bidder',
+        current_leader_id: auction.current_leader_id,
+        currentLeaderName: finalLeaderName,
+        current_leader_name: finalLeaderName,
         bidCount: auction.bid_count,
+        bid_count: auction.bid_count,
         updatedAt: auction.updated_at,
+        updated_at: auction.updated_at,
       },
       counterBidsPlaced: placedBids.length - 1,
     });

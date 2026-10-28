@@ -313,14 +313,24 @@ export default function AuctionDetails() {
   // Synchronize bid input with minimum next acceptable bid
   useEffect(() => {
     if (auction) {
-      const curPrice = auction.currentPrice || auction.startingPrice || 0;
-      const startPrice = auction.startingPrice || 0;
-      const minInc = auction.minBidIncrement || 50;
-      const count = auction.bidCount || 0;
+      const curPrice = Number(auction.currentPrice ?? auction.current_price ?? auction.startingPrice ?? auction.starting_price ?? 0);
+      const startPrice = Number(auction.startingPrice ?? auction.starting_price ?? 0);
+      const minInc = Number(auction.minBidIncrement ?? auction.min_bid_increment ?? 50);
+      const count = Number(auction.bidCount ?? auction.bid_count ?? 0);
       const calculatedMinNext = count > 0 ? curPrice + minInc : startPrice;
       setBidAmount(String(calculatedMinNext));
     }
-  }, [auction?.id, auction?.currentPrice, auction?.bidCount, auction?.startingPrice, auction?.minBidIncrement]);
+  }, [
+    auction?.id,
+    auction?.currentPrice,
+    auction?.current_price,
+    auction?.bidCount,
+    auction?.bid_count,
+    auction?.startingPrice,
+    auction?.starting_price,
+    auction?.minBidIncrement,
+    auction?.min_bid_increment,
+  ]);
 
   // Loading State
   if (isLoading) {
@@ -360,10 +370,10 @@ export default function AuctionDetails() {
 
   // Formatted data items & bidding eligibility
   const gallery = Array.isArray(auction.images) && auction.images.length > 0 ? auction.images : [];
-  const currentPrice = auction.currentPrice || auction.startingPrice || 0;
-  const startingPrice = auction.startingPrice || 0;
-  const minIncrement = auction.minBidIncrement || 50;
-  const bidCount = auction.bidCount || 0;
+  const currentPrice = Number(auction.currentPrice ?? auction.current_price ?? auction.startingPrice ?? auction.starting_price ?? 0);
+  const startingPrice = Number(auction.startingPrice ?? auction.starting_price ?? 0);
+  const minIncrement = Number(auction.minBidIncrement ?? auction.min_bid_increment ?? 50);
+  const bidCount = Number(auction.bidCount ?? auction.bid_count ?? 0);
   const minNextBid = bidCount > 0 ? currentPrice + minIncrement : startingPrice;
   const isSeller = Boolean(user?.id && (user.id === auction.sellerId || user.id === auction.seller_id));
   const isEnded = Boolean(auction.endsAt && (new Date(auction.endsAt).getTime() <= Date.now() || timeLeft.isEnded));
@@ -434,17 +444,38 @@ export default function AuctionDetails() {
         return;
       }
 
-      // Successful bid placement
-      setBidSuccess(`Your bid of ₹${parsedAmount.toLocaleString('en-IN')} was placed successfully! You are now the leading bidder.`);
+      // Check if user is actually leading
+      const isLeader = Boolean(
+        data.isLeader ??
+        (data.auction?.currentLeaderId === user?.id || data.auction?.current_leader_id === user?.id)
+      );
 
-      // Update local auction state immediately
+      if (isLeader) {
+        setBidSuccess(
+          data.message ||
+          `Your bid of ₹${parsedAmount.toLocaleString('en-IN')} was placed successfully! You are now the leading bidder.`
+        );
+      } else {
+        const leaderName = data.auction?.currentLeaderName || data.auction?.current_leader_name || 'Another bidder';
+        const currentVal = data.auction?.currentPrice ?? data.auction?.current_price ?? (parsedAmount + minIncrement);
+        setBidSuccess(
+          data.message ||
+          `Your bid of ₹${parsedAmount.toLocaleString('en-IN')} was accepted, but ${leaderName} automatically placed a counter-bid of ₹${currentVal?.toLocaleString('en-IN')} to take the lead.`
+        );
+      }
+
+      // Update local auction state immediately from response
       if (data.auction) {
         setAuction((prev) => ({
           ...prev,
-          currentPrice: data.auction.currentPrice,
-          bidCount: data.auction.bidCount,
-          currentLeaderId: data.auction.currentLeaderId,
-          currentLeaderName: data.auction.currentLeaderName,
+          currentPrice: data.auction.currentPrice ?? data.auction.current_price ?? prev?.currentPrice,
+          current_price: data.auction.currentPrice ?? data.auction.current_price ?? prev?.current_price,
+          bidCount: data.auction.bidCount ?? data.auction.bid_count ?? prev?.bidCount,
+          bid_count: data.auction.bidCount ?? data.auction.bid_count ?? prev?.bid_count,
+          currentLeaderId: data.auction.currentLeaderId ?? data.auction.current_leader_id ?? prev?.currentLeaderId,
+          current_leader_id: data.auction.currentLeaderId ?? data.auction.current_leader_id ?? prev?.current_leader_id,
+          currentLeaderName: data.auction.currentLeaderName ?? data.auction.current_leader_name ?? prev?.currentLeaderName,
+          current_leader_name: data.auction.currentLeaderName ?? data.auction.current_leader_name ?? prev?.current_leader_name,
         }));
       }
 
@@ -457,6 +488,19 @@ export default function AuctionDetails() {
           const bidsData = await bidsRes.json();
           if (Array.isArray(bidsData.bids)) {
             setBids(bidsData.bids);
+          }
+          if (bidsData.auction) {
+            setAuction((prev) => ({
+              ...prev,
+              currentPrice: bidsData.auction.currentPrice ?? bidsData.auction.current_price ?? prev?.currentPrice,
+              current_price: bidsData.auction.currentPrice ?? bidsData.auction.current_price ?? prev?.current_price,
+              bidCount: bidsData.auction.bidCount ?? bidsData.auction.bid_count ?? prev?.bidCount,
+              bid_count: bidsData.auction.bidCount ?? bidsData.auction.bid_count ?? prev?.bid_count,
+              currentLeaderId: bidsData.auction.currentLeaderId ?? bidsData.auction.current_leader_id ?? prev?.currentLeaderId,
+              current_leader_id: bidsData.auction.currentLeaderId ?? bidsData.auction.current_leader_id ?? prev?.current_leader_id,
+              currentLeaderName: bidsData.auction.currentLeaderName ?? bidsData.auction.current_leader_name ?? prev?.currentLeaderName,
+              current_leader_name: bidsData.auction.currentLeaderName ?? bidsData.auction.current_leader_name ?? prev?.current_leader_name,
+            }));
           }
         } else if (data.bid) {
           setBids((prev) => [data.bid, ...prev]);
@@ -1043,10 +1087,20 @@ export default function AuctionDetails() {
                     </div>
                   )}
 
-                  {/* Success Alert Banner */}
+                  {/* Success / Outbid Notification Alert Banner */}
                   {bidSuccess && (
-                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-start gap-2 text-xs animate-in fade-in duration-150">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    <div
+                      className={`p-3 rounded-xl border flex items-start gap-2 text-xs animate-in fade-in duration-150 ${
+                        isUserLeading
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                          : 'bg-amber-50 border-amber-300 text-amber-900'
+                      }`}
+                    >
+                      {isUserLeading ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                      )}
                       <p className="font-semibold leading-relaxed">{bidSuccess}</p>
                     </div>
                   )}
