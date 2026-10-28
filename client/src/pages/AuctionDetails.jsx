@@ -10,6 +10,8 @@ import {
   AlertCircle,
   Sparkles,
   Share2,
+  Copy,
+  Check,
   Heart,
   Bike,
   Calculator,
@@ -132,6 +134,10 @@ export default function AuctionDetails() {
   const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
   const [decisionError, setDecisionError] = useState(null);
   const [decisionSuccess, setDecisionSuccess] = useState(null);
+
+  // Share Modal State
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [copyStatus, setCopyStatus] = useState('idle'); // 'idle' | 'copied' | 'error'
 
   // Refresh user's own Auto Bid status
   const fetchAutoBidStatus = useCallback(async () => {
@@ -732,6 +738,84 @@ export default function AuctionDetails() {
     }
   };
 
+  // Generate shareable URL dynamically from current route
+  const getShareUrl = useCallback(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      return `${window.location.origin}/auctions/${id}`;
+    }
+    return `/auctions/${id}`;
+  }, [id]);
+
+  const isWebShareSupported = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+
+  // Native device sharing via Web Share API
+  const handleNativeShare = async () => {
+    if (!navigator.share) return;
+    try {
+      await navigator.share({
+        title: auction?.title ? `${auction.title} | Campus Auction` : 'Campus Auction Listing',
+        text: `Check out this verified student listing for "${auction?.title || 'an item'}" on Campus Auction!`,
+        url: getShareUrl(),
+      });
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.warn('[Share] Native Web Share error:', err);
+      }
+    }
+  };
+
+  // Copy share URL to clipboard with fallback
+  const handleCopyLink = async () => {
+    const url = getShareUrl();
+    let succeeded = false;
+
+    if (navigator?.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(url);
+        succeeded = true;
+      } catch (err) {
+        console.warn('[Share] navigator.clipboard.writeText failed, using fallback:', err);
+      }
+    }
+
+    if (!succeeded && typeof document !== 'undefined') {
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        textArea.setAttribute('readonly', '');
+        document.body.appendChild(textArea);
+        textArea.select();
+        succeeded = document.execCommand('copy');
+        document.body.removeChild(textArea);
+      } catch (fallbackErr) {
+        console.error('[Share] Fallback copy failed:', fallbackErr);
+      }
+    }
+
+    if (succeeded) {
+      setCopyStatus('copied');
+      setTimeout(() => setCopyStatus('idle'), 3000);
+    } else {
+      setCopyStatus('error');
+      setTimeout(() => setCopyStatus('idle'), 4000);
+    }
+  };
+
+  // Close share modal on Escape key
+  useEffect(() => {
+    if (!isShareModalOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsShareModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isShareModalOpen]);
+
   return (
     <div className="space-y-8">
       {/* 1. Header with Breadcrumbs and Back Navigation */}
@@ -756,7 +840,16 @@ export default function AuctionDetails() {
           ]}
           action={
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" icon={Share2}>
+              <Button
+                variant="outline"
+                size="sm"
+                icon={Share2}
+                onClick={() => {
+                  setCopyStatus('idle');
+                  setIsShareModalOpen(true);
+                }}
+                aria-label="Share auction listing"
+              >
                 Share
               </Button>
               <Button variant="outline" size="sm" icon={Heart}>
@@ -1758,6 +1851,135 @@ export default function AuctionDetails() {
                 ) : (
                   'Confirm Reject'
                 )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Auction Listing Modal */}
+      {isShareModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+          onClick={() => setIsShareModalOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="share-modal-title"
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shadow-2xs">
+                  <Share2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 id="share-modal-title" className="font-bold text-slate-900 text-base leading-tight">
+                    Share Auction Listing
+                  </h3>
+                  <p className="text-xs text-slate-400">Share with fellow campus students</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsShareModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                aria-label="Close share dialog"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Auction Summary Card */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider">
+                  {formatCategoryName(auction?.category)}
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  #{auction?.id ? auction.id.slice(0, 8) : ''}
+                </span>
+              </div>
+              <h4 className="font-bold text-slate-900 text-sm line-clamp-2">
+                {auction?.title}
+              </h4>
+              <div className="flex items-center justify-between pt-1 text-xs">
+                <span className="text-slate-500">Current Leading Bid</span>
+                <span className="font-extrabold text-slate-900">
+                  ₹{currentPrice.toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+
+            {/* Link Copy Box */}
+            <div className="space-y-1.5">
+              <label htmlFor="share-link-input" className="block text-xs font-bold text-slate-700">
+                Shareable Link
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="share-link-input"
+                  type="text"
+                  readOnly
+                  value={getShareUrl()}
+                  onFocus={(e) => e.target.select()}
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 font-mono focus:outline-hidden focus:border-indigo-400 focus:bg-white select-all"
+                />
+                <Button
+                  type="button"
+                  variant={copyStatus === 'copied' ? 'accent' : 'primary'}
+                  size="sm"
+                  icon={copyStatus === 'copied' ? Check : Copy}
+                  onClick={handleCopyLink}
+                  className="flex-shrink-0"
+                >
+                  {copyStatus === 'copied' ? 'Copied!' : 'Copy Link'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Feedback Alert */}
+            {copyStatus === 'copied' && (
+              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2 animate-in fade-in duration-200">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span className="font-semibold">Link copied to clipboard!</span>
+              </div>
+            )}
+            {copyStatus === 'error' && (
+              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2 animate-in fade-in duration-200">
+                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                <span className="font-semibold">Could not copy automatically. Please select and copy the link from the input field above.</span>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+              {isWebShareSupported ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  icon={Share2}
+                  onClick={handleNativeShare}
+                >
+                  Share via Device
+                </Button>
+              ) : (
+                <span className="text-[11px] text-slate-400">
+                  Ready to share with campus peers
+                </span>
+              )}
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsShareModalOpen(false)}
+              >
+                Close
               </Button>
             </div>
           </div>
