@@ -436,6 +436,84 @@ export default function AuctionDetails() {
     auction?.min_bid_increment,
   ]);
 
+  // Generate shareable URL dynamically from current route
+  const getShareUrl = useCallback(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      return `${window.location.origin}/auctions/${id}`;
+    }
+    return `/auctions/${id}`;
+  }, [id]);
+
+  const isWebShareSupported = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+
+  // Native device sharing via Web Share API
+  const handleNativeShare = async () => {
+    if (!navigator.share) return;
+    try {
+      await navigator.share({
+        title: auction?.title ? `${auction.title} | Campus Auction` : 'Campus Auction Listing',
+        text: `Check out this verified student listing for "${auction?.title || 'an item'}" on Campus Auction!`,
+        url: getShareUrl(),
+      });
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.warn('[Share] Native Web Share error:', err);
+      }
+    }
+  };
+
+  // Copy share URL to clipboard with fallback
+  const handleCopyLink = async () => {
+    const url = getShareUrl();
+    let succeeded = false;
+
+    if (navigator?.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(url);
+        succeeded = true;
+      } catch (err) {
+        console.warn('[Share] navigator.clipboard.writeText failed, using fallback:', err);
+      }
+    }
+
+    if (!succeeded && typeof document !== 'undefined') {
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        textArea.setAttribute('readonly', '');
+        document.body.appendChild(textArea);
+        textArea.select();
+        succeeded = document.execCommand('copy');
+        document.body.removeChild(textArea);
+      } catch (fallbackErr) {
+        console.error('[Share] Fallback copy failed:', fallbackErr);
+      }
+    }
+
+    if (succeeded) {
+      setCopyStatus('copied');
+      setTimeout(() => setCopyStatus('idle'), 3000);
+    } else {
+      setCopyStatus('error');
+      setTimeout(() => setCopyStatus('idle'), 4000);
+    }
+  };
+
+  // Close share modal on Escape key
+  useEffect(() => {
+    if (!isShareModalOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsShareModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isShareModalOpen]);
+
   // Loading State
   if (isLoading) {
     return (
@@ -779,84 +857,6 @@ export default function AuctionDetails() {
       setIsSubmittingDecision(false);
     }
   };
-
-  // Generate shareable URL dynamically from current route
-  const getShareUrl = useCallback(() => {
-    if (typeof window !== 'undefined' && window.location) {
-      return `${window.location.origin}/auctions/${id}`;
-    }
-    return `/auctions/${id}`;
-  }, [id]);
-
-  const isWebShareSupported = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
-
-  // Native device sharing via Web Share API
-  const handleNativeShare = async () => {
-    if (!navigator.share) return;
-    try {
-      await navigator.share({
-        title: auction?.title ? `${auction.title} | Campus Auction` : 'Campus Auction Listing',
-        text: `Check out this verified student listing for "${auction?.title || 'an item'}" on Campus Auction!`,
-        url: getShareUrl(),
-      });
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.warn('[Share] Native Web Share error:', err);
-      }
-    }
-  };
-
-  // Copy share URL to clipboard with fallback
-  const handleCopyLink = async () => {
-    const url = getShareUrl();
-    let succeeded = false;
-
-    if (navigator?.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(url);
-        succeeded = true;
-      } catch (err) {
-        console.warn('[Share] navigator.clipboard.writeText failed, using fallback:', err);
-      }
-    }
-
-    if (!succeeded && typeof document !== 'undefined') {
-      try {
-        const textArea = document.createElement('textarea');
-        textArea.value = url;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        textArea.style.top = '-999999px';
-        textArea.setAttribute('readonly', '');
-        document.body.appendChild(textArea);
-        textArea.select();
-        succeeded = document.execCommand('copy');
-        document.body.removeChild(textArea);
-      } catch (fallbackErr) {
-        console.error('[Share] Fallback copy failed:', fallbackErr);
-      }
-    }
-
-    if (succeeded) {
-      setCopyStatus('copied');
-      setTimeout(() => setCopyStatus('idle'), 3000);
-    } else {
-      setCopyStatus('error');
-      setTimeout(() => setCopyStatus('idle'), 4000);
-    }
-  };
-
-  // Close share modal on Escape key
-  useEffect(() => {
-    if (!isShareModalOpen) return;
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        setIsShareModalOpen(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isShareModalOpen]);
 
   return (
     <div className="space-y-8">
