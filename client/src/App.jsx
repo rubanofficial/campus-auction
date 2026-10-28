@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from './context/AuthContext';
 import Navbar from './components/layout/Navbar';
 import Sidebar from './components/layout/Sidebar';
 import Footer from './components/layout/Footer';
@@ -6,6 +7,7 @@ import AppRoutes from './routes/AppRoutes';
 
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { isAuthenticated } = useAuth();
 
   const toggleSidebar = () => {
     setIsSidebarOpen((prev) => !prev);
@@ -15,6 +17,18 @@ export default function App() {
     setIsSidebarOpen(false);
   };
 
+  // If student is not signed in, render public auth screens directly without marketplace shell
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+        <main className="flex-1 flex flex-col justify-center px-4 sm:px-6">
+          <AppRoutes />
+        </main>
+      </div>
+    );
+  }
+
+  // Authenticated student marketplace shell
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
       {/* Top Application Navbar */}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Compass,
@@ -10,10 +10,20 @@ import {
   Bike,
   Laptop,
   BookOpen,
+  LogOut,
   X
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Sidebar({ isOpen, onClose }) {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    if (window.innerWidth < 1024) onClose();
+    navigate('/login', { replace: true });
+  };
   const navItems = [
     { label: 'Dashboard / Home', href: '/', icon: LayoutDashboard },
     { label: 'Browse Auctions', href: '/auctions', icon: Compass },
@@ -124,8 +134,20 @@ export default function Sidebar({ isOpen, onClose }) {
           </div>
         </div>
 
+        {/* Logout Action */}
+        <div className="pt-2 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors w-full text-left"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </button>
+        </div>
+
         {/* Safety & Trust Box at bottom */}
-        <div className="pt-4 border-t border-slate-100">
+        <div className="pt-2">
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60 text-xs">
             <div className="flex items-center gap-1.5 font-semibold text-slate-800 mb-1">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
