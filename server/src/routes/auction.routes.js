@@ -4,7 +4,7 @@ import {
   getAuctionById,
   getAuctions,
 } from '../controllers/auction.controller.js';
-import { placeBid } from '../controllers/bid.controller.js';
+import { placeBid, getAuctionBids } from '../controllers/bid.controller.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -26,6 +26,12 @@ router.post('/', requireAuth, createAuction);
  * Retrieve details for a single auction by ID
  */
 router.get('/:id', getAuctionById);
+
+/**
+ * GET /api/auctions/:id/bids
+ * Retrieve bid history for a single auction
+ */
+router.get('/:id/bids', getAuctionBids);
 
 /**
  * POST /api/auctions/:id/bids

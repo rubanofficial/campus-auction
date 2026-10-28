@@ -1,4 +1,4 @@
-import { getPool } from '../config/database.js';
+import { getPool, query } from '../config/database.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_POSTGRES_INTEGER = 2147483647;
@@ -238,4 +238,112 @@ export const placeBid = async (req, res) => {
     client.release();
   }
 };
+
+/**
+ * Retrieve bid history for a specific auction
+ * GET /api/auctions/:id/bids
+ */
+export const getAuctionBids = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Validate Auction ID format (UUID)
+    if (!id || !UUID_REGEX.test(id)) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid auction ID format. Expected a valid UUID.',
+      });
+    }
+
+    // 2. Query auction summary with leader display name via LEFT JOIN
+    const auctionQuery = `
+      SELECT
+        a.id,
+        a.title,
+        a.starting_price,
+        a.min_bid_increment,
+        a.current_price,
+        a.bid_count,
+        a.status,
+        a.current_leader_id,
+        l.display_name AS current_leader_name
+      FROM auctions a
+      LEFT JOIN users l ON a.current_leader_id = l.id
+      WHERE a.id = $1;
+    `;
+
+    const auctionResult = await query(auctionQuery, [id]);
+
+    // 3. Return 404 if auction not found
+    if (auctionResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Auction not found.',
+      });
+    }
+
+    const auction = auctionResult.rows[0];
+
+    // 4. Query bids belonging only to this auction with bidder display name
+    // Ordered newest-first using created_at DESC and stable tie-breaker id DESC
+    const bidsQuery = `
+      SELECT
+        b.id,
+        b.auction_id,
+        b.bidder_id,
+        b.amount,
+        b.created_at,
+        u.display_name AS bidder_name
+      FROM bids b
+      JOIN users u ON b.bidder_id = u.id
+      WHERE b.auction_id = $1
+      ORDER BY b.created_at DESC, b.id DESC;
+    `;
+
+    const bidsResult = await query(bidsQuery, [id]);
+
+    const formattedBids = bidsResult.rows.map((row) => ({
+      id: row.id,
+      auctionId: row.auction_id,
+      bidderId: row.bidder_id,
+      bidderName: row.bidder_name,
+      amount: row.amount,
+      createdAt: row.created_at,
+      // Snake_case convenience
+      auction_id: row.auction_id,
+      bidder_id: row.bidder_id,
+      bidder_name: row.bidder_name,
+      created_at: row.created_at,
+    }));
+
+    return res.status(200).json({
+      auction: {
+        id: auction.id,
+        title: auction.title,
+        startingPrice: auction.starting_price,
+        minBidIncrement: auction.min_bid_increment,
+        currentPrice: auction.current_price,
+        bidCount: auction.bid_count,
+        currentLeaderId: auction.current_leader_id || null,
+        currentLeaderName: auction.current_leader_name || null,
+        status: auction.status,
+        // Snake_case convenience
+        starting_price: auction.starting_price,
+        min_bid_increment: auction.min_bid_increment,
+        current_price: auction.current_price,
+        bid_count: auction.bid_count,
+        current_leader_id: auction.current_leader_id || null,
+        current_leader_name: auction.current_leader_name || null,
+      },
+      bids: formattedBids,
+    });
+  } catch (error) {
+    console.error(`[Bidding Controller] Error retrieving bid history: ${error.message}`);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'An unexpected error occurred while retrieving bid history. Please try again.',
+    });
+  }
+};
+
 
