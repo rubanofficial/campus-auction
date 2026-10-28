@@ -11,12 +11,13 @@ import {
   Laptop,
   BookOpen,
   LogOut,
-  X
+  X,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function Sidebar({ isOpen, onClose }) {
-  const { logout } = useAuth();
+  const { logout, unreadNotificationsCount } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -27,9 +28,15 @@ export default function Sidebar({ isOpen, onClose }) {
   const navItems = [
     { label: 'Dashboard / Home', href: '/', icon: LayoutDashboard },
     { label: 'Browse Auctions', href: '/auctions', icon: Compass },
+    { label: 'AI Assistant', href: '/ai-search', icon: Sparkles, aiBadge: true },
     { label: 'Create Listing', href: '/auctions/create', icon: PlusCircle, highlight: true },
     { label: 'My Activity', href: '/activity', icon: Activity },
-    { label: 'Notifications', href: '/notifications', icon: Bell, badge: '3' },
+    {
+      label: 'Notifications',
+      href: '/notifications',
+      icon: Bell,
+      badge: unreadNotificationsCount > 0 ? String(unreadNotificationsCount) : null,
+    },
   ];
 
   const popularCategories = [
@@ -98,6 +105,11 @@ export default function Sidebar({ isOpen, onClose }) {
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
                   <span className="flex-1 truncate">{item.label}</span>
+                  {item.aiBadge && (
+                    <span className="px-1.5 py-0.5 text-[10px] font-extrabold rounded-md bg-amber-100 text-amber-800 uppercase tracking-wider">
+                      AI
+                    </span>
+                  )}
                   {item.badge && (
                     <span className="px-1.5 py-0.5 text-[11px] font-bold rounded-full bg-indigo-100 text-indigo-700">
                       {item.badge}

@@ -10,7 +10,8 @@ import {
   Home,
   Clock,
   GraduationCap,
-  LogOut
+  LogOut,
+  Sparkles,
 } from 'lucide-react';
 import Button from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
@@ -72,6 +73,10 @@ export default function Navbar({ isSidebarOpen, onToggleSidebar }) {
             <NavLink to="/auctions" className={navLinkClass}>
               <Compass className="w-4 h-4" />
               <span>Browse Auctions</span>
+            </NavLink>
+            <NavLink to="/ai-search" className={navLinkClass}>
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              <span>AI Search</span>
             </NavLink>
             <NavLink to="/activity" className={navLinkClass}>
               <Clock className="w-4 h-4" />

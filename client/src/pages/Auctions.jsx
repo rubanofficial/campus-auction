@@ -18,6 +18,7 @@ import {
   RefreshCw,
   AlertCircle,
   PlusCircle,
+  ArrowRight,
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
@@ -305,12 +306,21 @@ export default function Auctions() {
         }
       />
 
-      {/* Campus Notice */}
-      <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-100 flex items-start gap-2.5 text-xs text-indigo-900">
-        <Sparkles className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
-        <p>
-          <span className="font-semibold">Live Campus Marketplace:</span> Peer-to-peer student exchanges with in-person campus pickup. All prices in Indian Rupees (₹).
-        </p>
+      {/* AI Assistant Banner */}
+      <div className="p-3.5 rounded-xl bg-gradient-to-r from-indigo-50 via-purple-50 to-indigo-50 border border-indigo-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-indigo-950">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+          <p>
+            <span className="font-bold">Natural-Language Search:</span> Looking for items under a specific budget? Ask our AI assistant in plain English.
+          </p>
+        </div>
+        <Link
+          to="/ai-search"
+          className="inline-flex items-center gap-1 font-bold text-indigo-600 hover:text-indigo-800 shrink-0 hover:underline"
+        >
+          <span>Try AI Assistant</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
       </div>
 
       {/* 2. Prominent Search Bar & Sort Row */}

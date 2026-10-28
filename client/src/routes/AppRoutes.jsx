@@ -7,6 +7,7 @@ import CreateAuction from '../pages/CreateAuction';
 import AuctionDetails from '../pages/AuctionDetails';
 import MyActivity from '../pages/MyActivity';
 import Notifications from '../pages/Notifications';
+import AiAssistant from '../pages/AiAssistant';
 import Login from '../pages/Login';
 import Register from '../pages/Register';
 import NotFound from '../pages/NotFound';
@@ -136,6 +137,22 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute>
             <Notifications />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ai-search"
+        element={
+          <ProtectedRoute>
+            <AiAssistant />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ai-assistant"
+        element={
+          <ProtectedRoute>
+            <AiAssistant />
           </ProtectedRoute>
         }
       />

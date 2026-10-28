@@ -316,6 +316,18 @@ export default function Home() {
               </span>
             ))}
           </div>
+
+          {/* AI Search CTA */}
+          <div className="pt-1 flex items-center gap-2">
+            <Link
+              to="/ai-search"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 border border-amber-400/30 text-xs font-semibold backdrop-blur-xs transition-colors"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Try Natural-Language AI Search</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
         </div>
 
         {/* Ambient Gradient Glows */}

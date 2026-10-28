@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.routes.js';
 import auctionRoutes from './routes/auction.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
+import aiRoutes from './routes/ai.routes.js';
 
 const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
@@ -69,6 +70,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/auctions', auctionRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Catch-all 404 handler for undefined routes
 app.use((req, res) => {
