@@ -254,13 +254,18 @@ export default function CreateAuction() {
       }
 
       // 4. Successful creation confirmed by backend
-      setCreatedAuction(data.auction);
-      // Clean up local preview object URLs
       selectedPhotos.forEach((photo) => {
         if (photo.url) URL.revokeObjectURL(photo.url);
       });
       setSelectedPhotos([]);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      if (data.auction?.id) {
+        navigate(`/auctions/${data.auction.id}`, {
+          state: { successMessage: `Auction "${data.auction.title}" created successfully and is now live!` },
+        });
+      } else {
+        navigate('/auctions');
+      }
     } catch (err) {
       setErrorMessage(
         'Could not connect to the backend server. Please verify your connection.'

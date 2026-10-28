@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import {
   Clock,
   ShieldCheck,
   MapPin,
   Tag,
   ArrowLeft,
-  User,
   History,
   AlertCircle,
   Sparkles,
@@ -16,191 +15,134 @@ import {
   Calculator,
   BookOpen,
   Laptop,
-  Headphones,
-  Lamp,
-  HelpCircle,
-  MessageSquare,
   CheckCircle2,
   Calendar,
-  DollarSign,
-  Info,
-  ChevronRight
+  ChevronRight,
+  Loader2,
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 
-// Static demonstration item dataset mapped by route ID
-const DEMO_ITEMS = {
-  'hero-sprint-bicycle': {
-    id: 'hero-sprint-bicycle',
-    title: 'Hero Sprint Pro 26T Mountain Bicycle (Single Speed)',
-    category: 'Cycles',
-    condition: 'Good',
-    startingPrice: 2400,
-    currentPrice: 3200,
-    minIncrement: 100,
-    closingDateTime: 'October 29, 2026 at 6:00 PM IST',
-    closingRemaining: '03h : 15m : 00s',
-    bidsCount: 9,
-    reserveMet: true,
-    pickupLocation: 'Hostel 4 Cycle Stand, West Campus',
-    seller: {
-      name: 'Rohan Sharma',
-      department: 'B.Tech Mechanical Engineering, 4th Year',
-      room: 'Hostel 4, Room 218',
-      rating: '4.9 ★ (8 campus transactions)',
-      verified: true,
-      memberSince: 'August 2024',
-    },
-    description:
-      'Selling my reliable Hero Sprint Pro 26T single speed mountain bike. Used primarily for daily commutes between Hostel 4, Mechanical workshops, and the Central Library. Both front and rear V-brakes were tuned and fitted with fresh brake pads at the Campus Cycle Workshop last month. Comes with a sturdy metal basket, bell, and heavy-duty cable number lock.',
-    gallery: [
-      'https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1532298229144-0ec0c57515c7?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1507035895480-2b3156c31fc8?auto=format&fit=crop&w=800&q=80',
-    ],
-    fallbackIcon: Bike,
-    bidHistory: [
-      { bidder: 'Rahul S. (Roll #23ME104)', amount: 3200, time: 'Today at 2:45 PM', isLeader: true },
-      { bidder: 'Priya M. (Roll #22CS089)', amount: 3100, time: 'Today at 1:15 PM', isLeader: false },
-      { bidder: 'Amit V. (Roll #24EE012)', amount: 2950, time: 'Today at 11:30 AM', isLeader: false },
-      { bidder: 'Sneha K. (Roll #23CH045)', amount: 2700, time: 'Yesterday at 8:10 PM', isLeader: false },
-      { bidder: 'Karthik N. (Roll #21CE078)', amount: 2400, time: 'Yesterday at 4:00 PM (Starting Bid)', isLeader: false },
-    ],
-    questions: [
-      {
-        author: 'Arjun P. (Student #302)',
-        date: 'Yesterday at 5:30 PM',
-        question: 'Are both tires holding pressure well, or is there any puncture history?',
-        answer: 'Both tubes are in great shape! Filled air yesterday at the campus gate pump and they hold pressure perfectly.',
-      },
-      {
-        author: 'Divya R. (Student #119)',
-        date: 'Today at 10:15 AM',
-        question: 'Can you hand it over near the Student Activity Center instead of Hostel 4?',
-        answer: 'Yes, absolutely. I can bring it to the SAC entrance during lunch break or after 5 PM.',
-      },
-    ],
-  },
-  'casio-fx991es-plus': {
-    id: 'casio-fx991es-plus',
-    title: 'Casio FX-991ES Plus Scientific Calculator (2nd Edition)',
-    category: 'Calculators',
-    condition: 'Like New',
-    startingPrice: 500,
-    currentPrice: 850,
-    minIncrement: 50,
-    closingDateTime: 'October 29, 2026 at 4:30 PM IST',
-    closingRemaining: '01h : 45m : 00s',
-    bidsCount: 14,
-    reserveMet: true,
-    pickupLocation: 'Library Front Lawn, Main Campus',
-    seller: {
-      name: 'Ananya Deshmukh',
-      department: 'Electrical Engineering, 3rd Year',
-      room: 'Girls Hostel 2, Room 104',
-      rating: '5.0 ★ (5 campus sales)',
-      verified: true,
-      memberSince: 'January 2025',
-    },
-    description:
-      'Genuine Casio FX-991ES Plus 2nd Edition scientific calculator. Essential for engineering mathematics, circuit theory, and university semester exams. Natural textbook display with 417 functions. Includes original sliding hard cover and fresh button cell battery.',
-    gallery: [
-      'https://images.unsplash.com/photo-1594980596870-8aa52a78d8cd?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=800&q=80',
-    ],
-    fallbackIcon: Calculator,
-    bidHistory: [
-      { bidder: 'Vikas T. (Roll #24CS031)', amount: 850, time: 'Today at 3:10 PM', isLeader: true },
-      { bidder: 'Deepak G. (Roll #23EE082)', amount: 800, time: 'Today at 1:40 PM', isLeader: false },
-      { bidder: 'Meera B. (Roll #24IT019)', amount: 750, time: 'Today at 11:00 AM', isLeader: false },
-      { bidder: 'Aditya S. (Roll #22ME099)', amount: 650, time: 'Yesterday at 9:15 PM', isLeader: false },
-      { bidder: 'Suresh L. (Roll #23EC014)', amount: 500, time: 'Yesterday at 6:00 PM (Starting Bid)', isLeader: false },
-    ],
-    questions: [
-      {
-        author: 'Nikhil K. (Student #441)',
-        date: 'Today at 11:20 AM',
-        question: 'Does this model have matrix and complex number calculation modes?',
-        answer: 'Yes, it supports up to 3x3 matrices, vectors, complex numbers, and equation solving.',
-      },
-    ],
-  },
-  'engineering-mathematics-grewal': {
-    id: 'engineering-mathematics-grewal',
-    title: 'Higher Engineering Mathematics - B.S. Grewal (44th Ed.)',
-    category: 'Books',
-    condition: 'Good',
-    startingPrice: 300,
-    currentPrice: 420,
-    minIncrement: 30,
-    closingDateTime: 'October 29, 2026 at 8:15 PM IST',
-    closingRemaining: '05h : 30m : 00s',
-    bidsCount: 6,
-    reserveMet: true,
-    pickupLocation: 'Mechanical Dept. Quad',
-    seller: {
-      name: 'Adarsh Gupta',
-      department: 'Civil Engineering, 4th Year',
-      room: 'Hostel 1, Room 312',
-      rating: '4.8 ★ (11 textbook exchanges)',
-      verified: true,
-      memberSince: 'July 2023',
-    },
-    description:
-      'Standard Higher Engineering Mathematics reference book by Dr. B.S. Grewal (44th Edition). Covers Calculus, Differential Equations, Linear Algebra, and Numerical Methods. Spine is intact, all pages clean with light pencil highlights on key formulas.',
-    gallery: [
-      'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80',
-    ],
-    fallbackIcon: BookOpen,
-    bidHistory: [
-      { bidder: 'Varun M. (Roll #25CS044)', amount: 420, time: 'Today at 1:20 PM', isLeader: true },
-      { bidder: 'Siddharth R. (Roll #25EE018)', amount: 390, time: 'Today at 10:45 AM', isLeader: false },
-      { bidder: 'Naveen C. (Roll #25ME091)', amount: 360, time: 'Yesterday at 7:30 PM', isLeader: false },
-      { bidder: 'Pooja T. (Roll #25IT002)', amount: 300, time: 'Yesterday at 3:00 PM (Starting Bid)', isLeader: false },
-    ],
-    questions: [
-      {
-        author: 'Ravi S. (Student #088)',
-        date: 'Today at 9:00 AM',
-        question: 'Are all Laplace transform tables in the appendix included without torn pages?',
-        answer: 'Yes! The appendix and Laplace transform reference tables are 100% intact.',
-      },
-    ],
-  },
+// Category fallback icon mapping
+const getCategoryIcon = (category) => {
+  switch (category?.toLowerCase()) {
+    case 'cycle':
+    case 'cycles':
+      return Bike;
+    case 'calculator':
+    case 'calculators':
+      return Calculator;
+    case 'books':
+    case 'book':
+      return BookOpen;
+    case 'electronics':
+    case 'electronic':
+      return Laptop;
+    default:
+      return Tag;
+  }
+};
+
+const formatCategoryName = (cat) => {
+  if (!cat) return 'Item';
+  const mapping = {
+    cycle: 'Cycle',
+    calculator: 'Calculator',
+    books: 'Books',
+    electronics: 'Electronics',
+    other: 'Other',
+  };
+  return mapping[cat.toLowerCase()] || cat.charAt(0).toUpperCase() + cat.slice(1);
+};
+
+const formatConditionName = (cond) => {
+  if (!cond) return 'Good';
+  const mapping = {
+    like_new: 'Like New',
+    good: 'Good',
+    fair: 'Fair',
+  };
+  return mapping[cond.toLowerCase()] || cond;
+};
+
+// Calculate countdown components
+const calculateTimeLeft = (endsAt) => {
+  if (!endsAt) return { hours: '00', minutes: '00', seconds: '00', isEnded: false };
+  const diff = new Date(endsAt).getTime() - Date.now();
+  if (diff <= 0) return { hours: '00', minutes: '00', seconds: '00', isEnded: true };
+
+  const totalHours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff / (1000 * 60)) % 60);
+  const seconds = Math.floor((diff / 1000) % 60);
+
+  return {
+    hours: String(totalHours).padStart(2, '0'),
+    minutes: String(minutes).padStart(2, '0'),
+    seconds: String(seconds).padStart(2, '0'),
+    isEnded: false,
+  };
 };
 
 export default function AuctionDetails() {
   const { id } = useParams();
+  const location = useLocation();
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
-  const [dbAuction, setDbAuction] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [auction, setAuction] = useState(null);
+  const [bids, setBids] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [imageError, setImageError] = useState(false);
+  const [timeLeft, setTimeLeft] = useState({ hours: '00', minutes: '00', seconds: '00', isEnded: false });
+  const [successBanner, setSuccessBanner] = useState(location.state?.successMessage || null);
 
+  // Fetch auction details and bid history
   useEffect(() => {
-    // If it is one of the built-in demo items, skip backend fetch
-    if (DEMO_ITEMS[id]) return;
-
     let isMounted = true;
     setIsLoading(true);
+    setErrorMessage(null);
 
-    fetch(`${apiBaseUrl}/api/auctions/${id}`, {
+    // 1. Fetch auction details
+    const fetchDetails = fetch(`${apiBaseUrl}/api/auctions/${id}`, {
+      credentials: 'include',
+    }).then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || data.error || `HTTP ${res.status}: Auction not found`);
+      }
+      return data.auction;
+    });
+
+    // 2. Fetch bid history
+    const fetchBids = fetch(`${apiBaseUrl}/api/auctions/${id}/bids`, {
       credentials: 'include',
     })
-      .then((res) => {
-        if (!res.ok) throw new Error('Auction not found');
-        return res.json();
+      .then(async (res) => {
+        if (!res.ok) return [];
+        const data = await res.json().catch(() => ({}));
+        return Array.isArray(data.bids) ? data.bids : [];
       })
-      .then((data) => {
-        if (isMounted && data.auction) {
-          setDbAuction(data.auction);
+      .catch(() => []);
+
+    Promise.all([fetchDetails, fetchBids])
+      .then(([auctionData, bidsData]) => {
+        if (isMounted) {
+          setAuction(auctionData);
+          setBids(bidsData);
+          setTimeLeft(calculateTimeLeft(auctionData.endsAt));
         }
       })
-      .catch(() => {
-        // Fallback gracefully
+      .catch((err) => {
+        if (isMounted) {
+          setErrorMessage(err.message || 'Auction listing not found.');
+          setAuction(null);
+        }
       })
       .finally(() => {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       });
 
     return () => {
@@ -208,63 +150,68 @@ export default function AuctionDetails() {
     };
   }, [id, apiBaseUrl]);
 
-  // Determine item data (demo item or fetched database item)
-  let item;
-  if (DEMO_ITEMS[id]) {
-    item = DEMO_ITEMS[id];
-  } else if (dbAuction) {
-    item = {
-      id: dbAuction.id,
-      title: dbAuction.title,
-      category: dbAuction.category
-        ? dbAuction.category.charAt(0).toUpperCase() + dbAuction.category.slice(1)
-        : 'Item',
-      condition: dbAuction.condition
-        ? dbAuction.condition.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-        : 'Good',
-      startingPrice: dbAuction.startingPrice,
-      currentPrice: dbAuction.currentPrice || dbAuction.startingPrice,
-      minIncrement: dbAuction.minBidIncrement || 50,
-      closingDateTime: dbAuction.endsAt
-        ? new Date(dbAuction.endsAt).toLocaleString('en-IN', {
-          dateStyle: 'medium',
-          timeStyle: 'short',
-        })
-        : 'Closing soon',
-      closingRemaining: 'Active',
-      bidsCount: dbAuction.bidCount || 0,
-      reserveMet: true,
-      pickupLocation: 'Campus Quad / Hostel Pickup',
-      seller: {
-        name: dbAuction.sellerName || 'Verified Student Seller',
-        department: 'Campus Community Member',
-        room: 'Hostel Resident',
-        rating: '5.0 ★ (Verified Student)',
-        verified: true,
-        memberSince: 'Member',
-      },
-      description: dbAuction.description,
-      gallery:
-        Array.isArray(dbAuction.images) && dbAuction.images.length > 0
-          ? dbAuction.images
-          : [],
-      bidHistory: [],
-      questions: [],
-    };
-  } else {
-    item = {
-      ...DEMO_ITEMS['hero-sprint-bicycle'],
-      id: id || 'hero-sprint-bicycle',
-      title: id ? `Campus Auction Item: ${id.replace(/-/g, ' ')}` : DEMO_ITEMS['hero-sprint-bicycle'].title,
-    };
+  // Live countdown timer ticker
+  useEffect(() => {
+    if (!auction?.endsAt) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft(calculateTimeLeft(auction.endsAt));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [auction?.endsAt]);
+
+  // Loading State
+  if (isLoading) {
+    return (
+      <div className="py-24 text-center space-y-4">
+        <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto" />
+        <div className="space-y-1">
+          <h2 className="text-base font-bold text-slate-800">Loading Auction Details...</h2>
+          <p className="text-xs text-slate-400">Retrieving verified student listing from campus marketplace</p>
+        </div>
+      </div>
+    );
   }
 
-  const minNextBid = item.currentPrice + item.minIncrement;
+  // Error / 404 Not Found State
+  if (errorMessage || !auction) {
+    return (
+      <div className="max-w-xl mx-auto py-16 text-center space-y-5">
+        <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto shadow-xs">
+          <AlertCircle className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-bold text-slate-900">Auction Listing Not Found</h2>
+          <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+            {errorMessage || 'The requested listing does not exist, has expired, or was removed.'}
+          </p>
+        </div>
+        <div className="pt-2">
+          <Button as={Link} to="/auctions" variant="primary" size="md">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Browse Live Auctions
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
-  // Selected gallery image index
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [imageError, setImageError] = useState(false);
-  const FallbackIcon = item.fallbackIcon || Tag;
+  // Formatted data items
+  const gallery = Array.isArray(auction.images) && auction.images.length > 0 ? auction.images : [];
+  const currentPrice = auction.currentPrice || auction.startingPrice || 0;
+  const startingPrice = auction.startingPrice || 0;
+  const minIncrement = auction.minBidIncrement || 50;
+  const bidCount = auction.bidCount || 0;
+  const minNextBid = bidCount > 0 ? currentPrice + minIncrement : startingPrice;
+  const FallbackIcon = getCategoryIcon(auction.category);
+
+  const formattedClosingDate = auction.endsAt
+    ? new Date(auction.endsAt).toLocaleString('en-IN', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      })
+    : 'Closing soon';
 
   return (
     <div className="space-y-8">
@@ -279,14 +226,14 @@ export default function AuctionDetails() {
         </Link>
 
         <PageHeader
-          title={item.title}
-          description={`Listing Reference: #${item.id} · Verified student listing at campus`}
-          badge="Active Demonstration Auction"
+          title={auction.title}
+          description={`Listing Reference: #${auction.id.slice(0, 8)} · Verified student listing at campus`}
+          badge={auction.status === 'active' ? 'Active Auction' : auction.status}
           breadcrumbs={[
             { label: 'Campus Home', href: '/' },
             { label: 'Browse Auctions', href: '/auctions' },
-            { label: item.category, href: '/auctions' },
-            { label: item.title },
+            { label: formatCategoryName(auction.category), href: `/auctions?category=${auction.category}` },
+            { label: auction.title },
           ]}
           action={
             <div className="flex items-center gap-2">
@@ -301,51 +248,69 @@ export default function AuctionDetails() {
         />
       </div>
 
-      {/* Demonstration Banner */}
+      {/* Creation Success Banner (if redirected after creating) */}
+      {successBanner && (
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-start gap-3 shadow-xs animate-in fade-in duration-300">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-0.5">
+            <h3 className="font-bold text-sm text-emerald-950">Listing Live on Marketplace</h3>
+            <p className="text-xs text-emerald-800 leading-relaxed">{successBanner}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSuccessBanner(null)}
+            className="text-xs text-emerald-700 hover:text-emerald-900 font-semibold"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Campus Notice */}
       <div className="p-4 rounded-xl bg-indigo-50/80 border border-indigo-100 flex items-start gap-3 text-xs text-indigo-950">
-        <Info className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
+        <Sparkles className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
         <div>
-          <span className="font-semibold">Demonstration Preview:</span> This is a frontend presentation view. Prices are in Indian Rupees (₹). Live bidding, socket countdowns, and student messaging will be enabled in future releases.
+          <span className="font-semibold">Campus Marketplace Listing:</span> In-person campus exchange with zero shipping fees. Inspect the item in person before payment.
         </div>
       </div>
 
       {/* Main Two-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column (7 cols): Images, Details, Seller, Q&A */}
+        {/* Left Column (7 cols): Images, Details, Seller */}
         <div className="lg:col-span-7 space-y-6">
           {/* Main Photo Gallery Viewport */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs space-y-3">
             <div className="relative aspect-4/3 w-full rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center">
-              {!imageError && item.gallery && item.gallery[selectedImageIndex] ? (
+              {!imageError && gallery[selectedImageIndex] ? (
                 <img
-                  src={item.gallery[selectedImageIndex]}
-                  alt={item.title}
+                  src={gallery[selectedImageIndex]}
+                  alt={auction.title}
                   onError={() => setImageError(true)}
                   className="w-full h-full object-cover transition-opacity duration-200"
                 />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center">
                   <FallbackIcon className="w-16 h-16 text-slate-300 mb-2" />
-                  <p className="text-sm font-semibold text-slate-600">{item.title}</p>
-                  <p className="text-xs text-slate-400 mt-1">{item.category} Photo Placeholder</p>
+                  <p className="text-sm font-semibold text-slate-600">{auction.title}</p>
+                  <p className="text-xs text-slate-400 mt-1">{formatCategoryName(auction.category)} Photo Placeholder</p>
                 </div>
               )}
 
               {/* Badges on Top of Photo */}
               <div className="absolute top-3 left-3 flex flex-wrap gap-2 pointer-events-none">
                 <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-600 text-white shadow-xs">
-                  {item.condition}
+                  {formatConditionName(auction.condition)}
                 </span>
                 <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-white/95 text-slate-800 backdrop-blur-xs border border-slate-200/60 shadow-xs">
-                  {item.category}
+                  {formatCategoryName(auction.category)}
                 </span>
               </div>
             </div>
 
             {/* Thumbnail Selectors */}
-            {item.gallery && item.gallery.length > 1 && (
+            {gallery.length > 1 && (
               <div className="flex items-center gap-2 overflow-x-auto pt-1">
-                {item.gallery.map((img, idx) => (
+                {gallery.map((img, idx) => (
                   <button
                     key={idx}
                     type="button"
@@ -353,10 +318,11 @@ export default function AuctionDetails() {
                       setSelectedImageIndex(idx);
                       setImageError(false);
                     }}
-                    className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${selectedImageIndex === idx
+                    className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${
+                      selectedImageIndex === idx
                         ? 'border-indigo-600 ring-2 ring-indigo-500/20'
                         : 'border-slate-200 hover:border-slate-300 opacity-70 hover:opacity-100'
-                      }`}
+                    }`}
                   >
                     <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
                   </button>
@@ -370,16 +336,16 @@ export default function AuctionDetails() {
             <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">
               Item Details & Condition
             </h2>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              {item.description}
+            <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+              {auction.description}
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-xs">
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2.5">
                 <MapPin className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-semibold text-slate-800 block">Campus Pickup Spot</span>
-                  <span className="text-slate-500">{item.pickupLocation}</span>
+                  <span className="font-semibold text-slate-800 block">Campus Pickup</span>
+                  <span className="text-slate-500">In-person handoff at campus quad / hostel</span>
                 </div>
               </div>
 
@@ -387,7 +353,7 @@ export default function AuctionDetails() {
                 <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <span className="font-semibold text-slate-800 block">Campus Trust</span>
-                  <span className="text-slate-500">In-person item inspection prior to payment</span>
+                  <span className="text-slate-500">Inspect the item in person before payment</span>
                 </div>
               </div>
             </div>
@@ -401,12 +367,12 @@ export default function AuctionDetails() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-100 to-indigo-200 text-indigo-700 font-extrabold flex items-center justify-center text-base border border-indigo-200">
-                  {item.seller.name.split(' ').map((n) => n[0]).join('')}
+                  {auction.sellerName ? auction.sellerName.charAt(0).toUpperCase() : 'S'}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-bold text-slate-900 text-sm sm:text-base">
-                      {item.seller.name}
+                      {auction.sellerName || 'Verified Student Seller'}
                     </h3>
                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                       <ShieldCheck className="w-3 h-3 text-emerald-600" />
@@ -414,75 +380,14 @@ export default function AuctionDetails() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {item.seller.department} · {item.seller.room}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    {item.seller.rating} · Campus member since {item.seller.memberSince}
+                    Campus Community Member
                   </p>
                 </div>
               </div>
 
-              <Button variant="outline" size="sm">
-                View Seller Listings
+              <Button as={Link} to="/auctions" variant="outline" size="sm">
+                Browse More Listings
               </Button>
-            </div>
-          </div>
-
-          {/* 5. Questions & Answers Section Placeholder */}
-          <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-indigo-600" />
-                <h2 className="text-base font-bold text-slate-900">
-                  Item Questions & Campus Q&A
-                </h2>
-              </div>
-              <span className="text-xs text-slate-400 font-medium">
-                {item.questions ? item.questions.length : 0} questions asked
-              </span>
-            </div>
-
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Have questions about sizing, wear, or campus meeting times? Post questions here for the seller to answer publicly.
-            </p>
-
-            {/* Existing Questions List */}
-            <div className="space-y-4">
-              {item.questions && item.questions.map((q, idx) => (
-                <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2 text-xs">
-                  <div className="flex items-center justify-between text-slate-400 text-[11px]">
-                    <span className="font-semibold text-slate-700">{q.author}</span>
-                    <span>{q.date}</span>
-                  </div>
-                  <p className="text-slate-800 font-medium">Q: {q.question}</p>
-                  <div className="pl-3 border-l-2 border-indigo-400 pt-1 text-slate-600">
-                    <span className="font-bold text-indigo-700">Seller: </span>
-                    {q.answer}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Question Input Placeholder */}
-            <div className="pt-2 space-y-2">
-              <label htmlFor="questionInput" className="block text-xs font-semibold text-slate-700">
-                Ask the Seller a Question
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="questionInput"
-                  type="text"
-                  placeholder="e.g. Can we meet near the Student Union during lunch hours?"
-                  disabled
-                  className="flex-1 px-4 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs placeholder:text-slate-400 focus:outline-none cursor-not-allowed"
-                />
-                <Button variant="outline" size="sm" disabled>
-                  Ask Question
-                </Button>
-              </div>
-              <p className="text-[11px] text-slate-400">
-                Demonstration placeholder: Buyer-to-seller messaging will be enabled when campus notifications launch.
-              </p>
             </div>
           </div>
         </div>
@@ -491,29 +396,29 @@ export default function AuctionDetails() {
         <div className="lg:col-span-5 space-y-6">
           {/* 2. Auction Status, Pricing & Visual Countdown Card */}
           <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-md space-y-5">
-            {/* Countdown Timer Display (Static Demo) */}
+            {/* Countdown Timer Display */}
             <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-100 text-center space-y-2">
               <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-indigo-700 uppercase tracking-wider">
                 <Clock className="w-4 h-4 text-indigo-600" />
-                Time Remaining (Demo)
+                {timeLeft.isEnded ? 'Auction Ended' : 'Time Remaining'}
               </div>
               <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
                 <div className="p-2.5 rounded-lg bg-white border border-indigo-100 shadow-2xs">
-                  <div className="text-2xl font-black text-indigo-950">03</div>
+                  <div className="text-2xl font-black text-indigo-950">{timeLeft.hours}</div>
                   <div className="text-[10px] text-slate-400 uppercase font-semibold">Hours</div>
                 </div>
                 <div className="p-2.5 rounded-lg bg-white border border-indigo-100 shadow-2xs">
-                  <div className="text-2xl font-black text-indigo-950">15</div>
+                  <div className="text-2xl font-black text-indigo-950">{timeLeft.minutes}</div>
                   <div className="text-[10px] text-slate-400 uppercase font-semibold">Minutes</div>
                 </div>
                 <div className="p-2.5 rounded-lg bg-white border border-indigo-100 shadow-2xs">
-                  <div className="text-2xl font-black text-indigo-950">00</div>
+                  <div className="text-2xl font-black text-indigo-950">{timeLeft.seconds}</div>
                   <div className="text-[10px] text-slate-400 uppercase font-semibold">Seconds</div>
                 </div>
               </div>
               <div className="text-[11px] text-slate-500 flex items-center justify-center gap-1">
                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                <span>Closes: {item.closingDateTime}</span>
+                <span>Closes: {formattedClosingDate}</span>
               </div>
             </div>
 
@@ -525,12 +430,18 @@ export default function AuctionDetails() {
                 </span>
                 <div className="flex items-baseline gap-2 mt-1">
                   <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
-                    ₹{item.currentPrice.toLocaleString('en-IN')}
+                    ₹{currentPrice.toLocaleString('en-IN')}
                   </span>
                   <span className="text-xs text-slate-500 font-medium">
-                    ({item.bidsCount} bids placed)
+                    ({bidCount} {bidCount === 1 ? 'bid placed' : 'bids placed'})
                   </span>
                 </div>
+                {auction.currentLeaderName && (
+                  <p className="text-xs text-emerald-700 font-medium mt-1 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Leading bidder: <span className="font-bold">{auction.currentLeaderName}</span>
+                  </p>
+                )}
               </div>
 
               {/* Price Details Grid */}
@@ -538,24 +449,24 @@ export default function AuctionDetails() {
                 <div>
                   <span className="text-slate-400 block text-[11px]">Starting Price</span>
                   <span className="font-bold text-slate-800">
-                    ₹{item.startingPrice.toLocaleString('en-IN')}
+                    ₹{startingPrice.toLocaleString('en-IN')}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[11px]">Min. Increment</span>
                   <span className="font-bold text-slate-800">
-                    ₹{item.minIncrement.toLocaleString('en-IN')}
+                    ₹{minIncrement.toLocaleString('en-IN')}
                   </span>
                 </div>
               </div>
 
               <div className="text-xs text-emerald-600 font-semibold flex items-center gap-1.5 pt-1">
                 <Sparkles className="w-3.5 h-3.5" />
-                Reserve price met · Top bid wins at close
+                Highest bid at closing time wins the item.
               </div>
             </div>
 
-            {/* 3. Bid Form UI (Visual Only) */}
+            {/* 3. Bid Form UI (Layout preserved; backend placeBid API ready) */}
             <div className="pt-4 border-t border-slate-100 space-y-3">
               <label htmlFor="bidInput" className="block text-xs font-bold text-slate-700">
                 Place Your Bid (₹)
@@ -586,11 +497,11 @@ export default function AuctionDetails() {
                 Minimum acceptable bid is ₹{minNextBid.toLocaleString('en-IN')}
               </p>
 
-              {/* Short informational message */}
+              {/* Informational message */}
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-2 text-xs text-slate-500">
                 <AlertCircle className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
                 <span>
-                  <strong>Demonstration Notice:</strong> Live bidding functionality and automatic bid tracking will be enabled in upcoming releases.
+                  Interactive client-side bidding form will be wired in the upcoming step. The backend API is active at <code className="bg-slate-200/70 px-1 py-0.5 rounded text-[11px]">POST /api/auctions/:id/bids</code>.
                 </span>
               </div>
             </div>
@@ -606,37 +517,51 @@ export default function AuctionDetails() {
                 </h2>
               </div>
               <span className="text-xs font-medium text-slate-500">
-                {item.bidHistory ? item.bidHistory.length : 0} bids shown
+                {bids.length} {bids.length === 1 ? 'bid' : 'bids'} recorded
               </span>
             </div>
 
-            <div className="divide-y divide-slate-100">
-              {item.bidHistory && item.bidHistory.map((bid, i) => (
-                <div key={i} className="py-2.5 flex items-center justify-between text-xs">
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-slate-800">{bid.bidder}</span>
-                      {bid.isLeader && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                          Leading
-                        </span>
-                      )}
+            {bids.length === 0 ? (
+              <div className="py-6 text-center space-y-1 text-slate-400">
+                <p className="text-xs font-semibold text-slate-600">No bids placed yet</p>
+                <p className="text-[11px]">Opening bid starts at ₹{startingPrice.toLocaleString('en-IN')}</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {bids.map((bid, i) => (
+                  <div key={bid.id || i} className="py-2.5 flex items-center justify-between text-xs">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-800">{bid.bidderName || 'Student Bidder'}</span>
+                        {i === 0 && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            Leading
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        {bid.createdAt
+                          ? new Date(bid.createdAt).toLocaleString('en-IN', {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })
+                          : 'Recently'}
+                      </span>
                     </div>
-                    <span className="text-[11px] text-slate-400">{bid.time}</span>
-                  </div>
 
-                  <div className="text-right">
-                    <span className="font-bold text-slate-900">
-                      ₹{bid.amount.toLocaleString('en-IN')}
-                    </span>
+                    <div className="text-right">
+                      <span className="font-bold text-slate-900">
+                        ₹{bid.amount.toLocaleString('en-IN')}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
-            <div className="pt-2 text-center">
+            <div className="pt-2 text-center border-t border-slate-100">
               <span className="text-[11px] text-slate-400">
-                All bids are public and verified to prevent shill bidding.
+                All bids are public and verified to ensure campus auction transparency.
               </span>
             </div>
           </div>

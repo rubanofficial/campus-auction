@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Search,
   Compass,
@@ -8,7 +8,6 @@ import {
   Calculator,
   BookOpen,
   Laptop,
-  Headphones,
   Clock,
   ShieldCheck,
   Sparkles,
@@ -16,134 +15,114 @@ import {
   Tag,
   MapPin,
   TrendingUp,
-  Layers
+  RefreshCw,
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 
-// Static sample data for Featured Auctions
-const FEATURED_AUCTIONS = [
-  {
-    id: 'trek-fx2-hybrid',
-    title: 'Trek FX 2 Disc Hybrid Bicycle (2023 Edition)',
-    category: 'Cycles',
-    condition: 'Like New',
-    currentPrice: 165,
-    bidCount: 12,
-    closingTime: '4h 20m',
-    pickupSpot: 'Student Recreation Center',
-    imageUrl: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=700&q=80',
-    fallbackIcon: Bike,
-  },
-  {
-    id: 'ti-84-plus-ce',
-    title: 'Texas Instruments TI-84 Plus CE Graphing Calculator',
-    category: 'Calculators',
-    condition: 'Excellent',
-    currentPrice: 55,
-    bidCount: 8,
-    closingTime: '2h 15m',
-    pickupSpot: 'Science & Math Hall',
-    imageUrl: 'https://images.unsplash.com/photo-1594980596870-8aa52a78d8cd?auto=format&fit=crop&w=700&q=80',
-    fallbackIcon: Calculator,
-  },
-  {
-    id: 'stewart-calculus',
-    title: 'Calculus: Early Transcendentals (8th Ed.) - Stewart',
-    category: 'Books',
-    condition: 'Good Condition',
-    currentPrice: 32,
-    bidCount: 5,
-    closingTime: '6h 45m',
-    pickupSpot: 'Campus Main Library',
-    imageUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=700&q=80',
-    fallbackIcon: BookOpen,
-  },
-  {
-    id: 'sony-wh1000xm4',
-    title: 'Sony WH-1000XM4 Wireless Noise-Cancelling Headphones',
-    category: 'Electronics',
-    condition: 'Like New',
-    currentPrice: 130,
-    bidCount: 14,
-    closingTime: '1d 03h',
-    pickupSpot: 'Student Union Lobby',
-    imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=700&q=80',
-    fallbackIcon: Headphones,
-  },
-  {
-    id: 'ipad-air-gen5',
-    title: 'Apple iPad Air (5th Gen) 64GB Wi-Fi with Apple Pencil',
-    category: 'Electronics',
-    condition: 'Mint Condition',
-    currentPrice: 340,
-    bidCount: 19,
-    closingTime: '18h 30m',
-    pickupSpot: 'Engineering Building',
-    imageUrl: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=700&q=80',
-    fallbackIcon: Laptop,
-  },
-  {
-    id: 'ninebot-scooter',
-    title: 'Segway Ninebot KickScooter Max G30 (Long-Range)',
-    category: 'Cycles',
-    condition: 'Gently Used',
-    currentPrice: 210,
-    bidCount: 9,
-    closingTime: '2d 08h',
-    pickupSpot: 'West Dorm Quad',
-    imageUrl: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=700&q=80',
-    fallbackIcon: Bike,
-  },
-];
+// Category fallback icon mapping
+const getCategoryIcon = (category) => {
+  switch (category?.toLowerCase()) {
+    case 'cycle':
+    case 'cycles':
+      return Bike;
+    case 'calculator':
+    case 'calculators':
+      return Calculator;
+    case 'books':
+    case 'book':
+      return BookOpen;
+    case 'electronics':
+    case 'electronic':
+      return Laptop;
+    default:
+      return Tag;
+  }
+};
+
+// Calculate human-friendly time remaining
+const formatTimeRemaining = (endsAt) => {
+  if (!endsAt) return 'Active';
+  const diff = new Date(endsAt).getTime() - Date.now();
+  if (diff <= 0) return 'Ended';
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  if (days > 0) return `${days}d ${remHours}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+};
+
+const formatCategoryName = (cat) => {
+  if (!cat) return 'Item';
+  const mapping = {
+    cycle: 'Cycles',
+    calculator: 'Calculators',
+    books: 'Books',
+    electronics: 'Electronics',
+    other: 'Other',
+  };
+  return mapping[cat.toLowerCase()] || cat.charAt(0).toUpperCase() + cat.slice(1);
+};
+
+const formatConditionName = (cond) => {
+  if (!cond) return 'Good';
+  const mapping = {
+    like_new: 'Like New',
+    good: 'Good',
+    fair: 'Fair',
+  };
+  return mapping[cond.toLowerCase()] || cond;
+};
 
 // Category shortcuts
 const CATEGORIES = [
   {
     name: 'Cycles',
+    key: 'cycle',
     description: 'Bikes, scooters & locks',
     icon: Bike,
-    color: 'from-emerald-500/10 to-teal-500/10 text-emerald-600 border-emerald-200/60',
     iconBg: 'bg-emerald-100 text-emerald-700',
-    count: '24 listings',
   },
   {
     name: 'Calculators',
+    key: 'calculator',
     description: 'Graphing & scientific',
     icon: Calculator,
-    color: 'from-purple-500/10 to-indigo-500/10 text-purple-600 border-purple-200/60',
     iconBg: 'bg-purple-100 text-purple-700',
-    count: '18 listings',
   },
   {
     name: 'Books',
+    key: 'books',
     description: 'Course textbooks & notes',
     icon: BookOpen,
-    color: 'from-amber-500/10 to-orange-500/10 text-amber-600 border-amber-200/60',
     iconBg: 'bg-amber-100 text-amber-700',
-    count: '42 listings',
   },
   {
     name: 'Electronics',
+    key: 'electronics',
     description: 'Laptops, tablets & audio',
     icon: Laptop,
-    color: 'from-blue-500/10 to-cyan-500/10 text-blue-600 border-blue-200/60',
     iconBg: 'bg-blue-100 text-blue-700',
-    count: '35 listings',
   },
 ];
 
-// Single sample auction card component with graceful image fallback
+// Real Auction Card Component for Home page
 function AuctionCard({ item }) {
   const [imageError, setImageError] = useState(false);
-  const FallbackIcon = item.fallbackIcon || Tag;
+  const FallbackIcon = getCategoryIcon(item.category);
+  const coverImage = Array.isArray(item.images) && item.images.length > 0 ? item.images[0] : null;
+  const currentPrice = item.currentPrice || item.startingPrice || 0;
+  const bidCount = item.bidCount || 0;
+  const closingTimeText = formatTimeRemaining(item.endsAt);
 
   return (
     <div className="group bg-white rounded-2xl border border-slate-200/80 hover:border-indigo-300 hover:shadow-lg transition-all duration-200 flex flex-col overflow-hidden">
       {/* Card Image Thumbnail */}
       <div className="relative aspect-4/3 w-full bg-slate-100 overflow-hidden flex items-center justify-center">
-        {!imageError ? (
+        {coverImage && !imageError ? (
           <img
-            src={item.imageUrl}
+            src={coverImage}
             alt={item.title}
             onError={() => setImageError(true)}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -152,24 +131,24 @@ function AuctionCard({ item }) {
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-100 p-4">
             <FallbackIcon className="w-12 h-12 text-slate-300 mb-2" />
-            <span className="text-xs font-medium text-slate-400">{item.category}</span>
+            <span className="text-xs font-medium text-slate-400">{formatCategoryName(item.category)}</span>
           </div>
         )}
 
         {/* Badges Overlay */}
         <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 pointer-events-none">
           <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-white/95 text-slate-700 backdrop-blur-xs shadow-xs border border-slate-200/60">
-            {item.category}
+            {formatCategoryName(item.category)}
           </span>
           <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-600 text-white shadow-xs">
-            {item.condition}
+            {formatConditionName(item.condition)}
           </span>
         </div>
 
         {/* Closing Time Badge */}
         <div className="absolute bottom-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-900/80 text-white backdrop-blur-xs shadow-xs">
           <Clock className="w-3.5 h-3.5 text-amber-300" />
-          <span>{item.closingTime}</span>
+          <span>{closingTimeText}</span>
         </div>
       </div>
 
@@ -183,7 +162,7 @@ function AuctionCard({ item }) {
           </h3>
           <p className="mt-1.5 text-xs text-slate-500 flex items-center gap-1 truncate">
             <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-            <span>Pickup: {item.pickupSpot}</span>
+            <span>Seller: {item.sellerName || 'Verified Student'}</span>
           </p>
         </div>
 
@@ -195,10 +174,10 @@ function AuctionCard({ item }) {
             </span>
             <div className="flex items-baseline gap-1.5">
               <span className="text-xl font-extrabold text-slate-900">
-                ${item.currentPrice}
+                ₹{currentPrice.toLocaleString('en-IN')}
               </span>
               <span className="text-[11px] text-slate-500 font-medium">
-                ({item.bidCount} bids)
+                ({bidCount} {bidCount === 1 ? 'bid' : 'bids'})
               </span>
             </div>
           </div>
@@ -219,11 +198,54 @@ function AuctionCard({ item }) {
 }
 
 export default function Home() {
+  const navigate = useNavigate();
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
   const [searchQuery, setSearchQuery] = useState('');
+  const [featuredAuctions, setFeaturedAuctions] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState(null);
+
+  // Fetch real featured listings closing soon
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    fetch(`${apiBaseUrl}/api/auctions?limit=6&sort=closingSoon`, {
+      credentials: 'include',
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch listings`);
+        return res.json();
+      })
+      .then((data) => {
+        if (isMounted) {
+          setFeaturedAuctions(Array.isArray(data.auctions) ? data.auctions : []);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          setErrorMessage(err.message || 'Unable to connect to marketplace');
+          setFeaturedAuctions([]);
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [apiBaseUrl]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    // UI-only search submission as required
+    if (searchQuery.trim()) {
+      navigate(`/auctions?search=${encodeURIComponent(searchQuery.trim())}`);
+    } else {
+      navigate('/auctions');
+    }
   };
 
   return (
@@ -252,7 +274,7 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Prominent UI Search Input */}
+          {/* Search Form */}
           <form
             onSubmit={handleSearchSubmit}
             className="pt-2 flex flex-col sm:flex-row gap-2.5 max-w-2xl"
@@ -281,11 +303,14 @@ export default function Home() {
           {/* Quick Popular Search Tags */}
           <div className="flex flex-wrap items-center gap-2 text-xs text-indigo-200/80">
             <span className="font-medium text-indigo-300">Popular:</span>
-            {['Trek Bikes', 'TI-84 Plus', 'Stewart Calculus', 'Noise Cancelling', 'Electric Scooter'].map((tag) => (
+            {['Hero Cycle', 'Casio Calculator', 'Engineering Mathematics', 'Headphones', 'Laptop Stand'].map((tag) => (
               <span
                 key={tag}
                 className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-indigo-100 transition-colors cursor-pointer"
-                onClick={() => setSearchQuery(tag)}
+                onClick={() => {
+                  setSearchQuery(tag);
+                  navigate(`/auctions?search=${encodeURIComponent(tag)}`);
+                }}
               >
                 {tag}
               </span>
@@ -323,7 +348,7 @@ export default function Home() {
             return (
               <Link
                 key={cat.name}
-                to="/auctions"
+                to={`/auctions?category=${cat.key}`}
                 className="group p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition-all duration-200 flex items-start gap-4"
               >
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${cat.iconBg} group-hover:scale-105 transition-transform`}>
@@ -339,9 +364,6 @@ export default function Home() {
                   <p className="text-xs text-slate-500 mt-0.5 truncate">
                     {cat.description}
                   </p>
-                  <span className="inline-block mt-2 text-[11px] font-semibold text-slate-400">
-                    {cat.count}
-                  </span>
                 </div>
               </Link>
             );
@@ -375,12 +397,65 @@ export default function Home() {
           </Button>
         </div>
 
-        {/* Sample Auction Cards Grid (6 items) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {FEATURED_AUCTIONS.map((auction) => (
-            <AuctionCard key={auction.id} item={auction} />
-          ))}
-        </div>
+        {/* Loading State */}
+        {isLoading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="bg-white rounded-2xl border border-slate-200/80 p-4 space-y-3 animate-pulse"
+              >
+                <div className="aspect-4/3 w-full bg-slate-100 rounded-xl" />
+                <div className="h-4 bg-slate-100 rounded-md w-3/4" />
+                <div className="h-3 bg-slate-100 rounded-md w-1/2" />
+                <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
+                  <div className="h-5 bg-slate-100 rounded-md w-20" />
+                  <div className="h-8 bg-slate-100 rounded-xl w-24" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Error State */}
+        {!isLoading && errorMessage && (
+          <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-2">
+            <p className="text-xs text-slate-600">{errorMessage}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={RefreshCw}
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </Button>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!isLoading && !errorMessage && featuredAuctions.length === 0 && (
+          <div className="p-8 rounded-2xl bg-white border border-slate-200/80 text-center space-y-3">
+            <Tag className="w-8 h-8 text-indigo-500 mx-auto" />
+            <div className="space-y-1">
+              <h3 className="font-bold text-sm text-slate-900">No Active Auctions Right Now</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                Be the first campus student to list a bicycle, textbook, or calculator for auction!
+              </p>
+            </div>
+            <Button as={Link} to="/auctions/create" variant="primary" size="sm" icon={PlusCircle}>
+              Create a Listing
+            </Button>
+          </div>
+        )}
+
+        {/* Real Auction Cards Grid */}
+        {!isLoading && !errorMessage && featuredAuctions.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {featuredAuctions.map((auction) => (
+              <AuctionCard key={auction.id} item={auction} />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* 4. Simple Call to Action (CTA) */}

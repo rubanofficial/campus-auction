@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Search,
   SlidersHorizontal,
@@ -12,136 +12,92 @@ import {
   Calculator,
   BookOpen,
   Laptop,
-  Headphones,
-  Lamp,
   ArrowUpDown,
   Sparkles,
-  Info,
-  ChevronDown
+  ChevronDown,
+  RefreshCw,
+  AlertCircle,
+  PlusCircle,
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 
-// Static sample demonstration auctions for campus browsing
-const SAMPLE_AUCTIONS = [
-  {
-    id: 'hero-sprint-bicycle',
-    title: 'Hero Sprint Pro 26T Mountain Bicycle (Single Speed)',
-    category: 'Cycles',
-    condition: 'Good',
-    currentPrice: 3200,
-    minNextBid: 3300,
-    closingTime: '3h 15m',
-    bidsCount: 9,
-    pickupLocation: 'Hostel 4 Cycle Stand',
-    imageUrl: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=600&q=80',
-    fallbackIcon: Bike,
-  },
-  {
-    id: 'casio-fx991es-plus',
-    title: 'Casio FX-991ES Plus Scientific Calculator (2nd Edition)',
-    category: 'Calculators',
-    condition: 'Like New',
-    currentPrice: 850,
-    minNextBid: 900,
-    closingTime: '1h 45m',
-    bidsCount: 14,
-    pickupLocation: 'Library Front Lawn',
-    imageUrl: 'https://images.unsplash.com/photo-1594980596870-8aa52a78d8cd?auto=format&fit=crop&w=600&q=80',
-    fallbackIcon: Calculator,
-  },
-  {
-    id: 'engineering-mathematics-grewal',
-    title: 'Higher Engineering Mathematics - B.S. Grewal (44th Ed.)',
-    category: 'Books',
-    condition: 'Good',
-    currentPrice: 420,
-    minNextBid: 450,
-    closingTime: '5h 30m',
-    bidsCount: 6,
-    pickupLocation: 'Mechanical Dept. Quad',
-    imageUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=600&q=80',
-    fallbackIcon: BookOpen,
-  },
-  {
-    id: 'aluminum-laptop-stand',
-    title: 'Foldable Ergonomic Aluminum Laptop Stand (Multi-Angle)',
-    category: 'Electronics',
-    condition: 'Like New',
-    currentPrice: 650,
-    minNextBid: 700,
-    closingTime: '7h 10m',
-    bidsCount: 8,
-    pickupLocation: 'Student Activity Center',
-    imageUrl: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?auto=format&fit=crop&w=600&q=80',
-    fallbackIcon: Laptop,
-  },
-  {
-    id: 'boat-rockerz-550',
-    title: 'boAt Rockerz 550 Over-Ear Wireless Bluetooth Headphones',
-    category: 'Electronics',
-    condition: 'Good',
-    currentPrice: 950,
-    minNextBid: 1000,
-    closingTime: '11h 20m',
-    bidsCount: 11,
-    pickupLocation: 'Dining Hall Annex',
-    imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80',
-    fallbackIcon: Headphones,
-  },
-  {
-    id: 'philips-rechargeable-desk-lamp',
-    title: 'Philips Rechargeable LED Desk Study Lamp (EyeCare)',
-    category: 'Electronics',
-    condition: 'Fair',
-    currentPrice: 380,
-    minNextBid: 410,
-    closingTime: '2h 50m',
-    bidsCount: 7,
-    pickupLocation: 'Boys Hostel Block B',
-    imageUrl: 'https://images.unsplash.com/photo-1534353436294-0dbd4bdac845?auto=format&fit=crop&w=600&q=80',
-    fallbackIcon: Lamp,
-  },
-  {
-    id: 'btwin-riverside-hybrid',
-    title: 'Btwin Riverside 120 Hybrid Geared Bicycle (Large Frame)',
-    category: 'Cycles',
-    condition: 'Good',
-    currentPrice: 4800,
-    minNextBid: 4950,
-    closingTime: '1d 04h',
-    bidsCount: 16,
-    pickupLocation: 'Main Campus Gate',
-    imageUrl: 'https://images.unsplash.com/photo-1532298229144-0ec0c57515c7?auto=format&fit=crop&w=600&q=80',
-    fallbackIcon: Bike,
-  },
-  {
-    id: 'casio-fx82ms-calculator',
-    title: 'Casio FX-82MS Scientific Calculator with Slide Case',
-    category: 'Calculators',
-    condition: 'Like New',
-    currentPrice: 450,
-    minNextBid: 480,
-    closingTime: '9h 15m',
-    bidsCount: 5,
-    pickupLocation: 'Computing Lab 2',
-    imageUrl: 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=600&q=80',
-    fallbackIcon: Calculator,
-  },
-];
+// Category fallback icon mapping
+const getCategoryIcon = (category) => {
+  switch (category?.toLowerCase()) {
+    case 'cycle':
+    case 'cycles':
+      return Bike;
+    case 'calculator':
+    case 'calculators':
+      return Calculator;
+    case 'books':
+    case 'book':
+      return BookOpen;
+    case 'electronics':
+    case 'electronic':
+      return Laptop;
+    default:
+      return Tag;
+  }
+};
 
-// Single sample auction card component with image error fallback
+// Calculate human-friendly time remaining
+const formatTimeRemaining = (endsAt) => {
+  if (!endsAt) return 'Active';
+  const diff = new Date(endsAt).getTime() - Date.now();
+  if (diff <= 0) return 'Ended';
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  if (days > 0) return `${days}d ${remHours}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+};
+
+// Capitalize helper
+const formatCategoryName = (cat) => {
+  if (!cat) return 'Item';
+  const mapping = {
+    cycle: 'Cycle',
+    calculator: 'Calculator',
+    books: 'Books',
+    electronics: 'Electronics',
+    other: 'Other',
+  };
+  return mapping[cat.toLowerCase()] || cat.charAt(0).toUpperCase() + cat.slice(1);
+};
+
+const formatConditionName = (cond) => {
+  if (!cond) return 'Good';
+  const mapping = {
+    like_new: 'Like New',
+    good: 'Good',
+    fair: 'Fair',
+  };
+  return mapping[cond.toLowerCase()] || cond;
+};
+
+// Real Auction Card Component
 function AuctionCard({ item }) {
   const [imageError, setImageError] = useState(false);
-  const FallbackIcon = item.fallbackIcon || Tag;
+  const FallbackIcon = getCategoryIcon(item.category);
+  const coverImage = Array.isArray(item.images) && item.images.length > 0 ? item.images[0] : null;
+
+  const currentPrice = item.currentPrice || item.startingPrice || 0;
+  const bidCount = item.bidCount || 0;
+  const minIncrement = item.minBidIncrement || 50;
+  const minNextBid = bidCount > 0 ? currentPrice + minIncrement : currentPrice;
+  const closingTimeText = formatTimeRemaining(item.endsAt);
 
   return (
     <div className="group bg-white rounded-2xl border border-slate-200/80 hover:border-indigo-300 hover:shadow-lg transition-all duration-200 flex flex-col overflow-hidden">
       {/* Thumbnail Viewport */}
       <div className="relative aspect-4/3 w-full bg-slate-100 overflow-hidden flex items-center justify-center">
-        {!imageError ? (
+        {coverImage && !imageError ? (
           <img
-            src={item.imageUrl}
+            src={coverImage}
             alt={item.title}
             onError={() => setImageError(true)}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -150,24 +106,24 @@ function AuctionCard({ item }) {
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-100 p-4">
             <FallbackIcon className="w-12 h-12 text-slate-300 mb-2" />
-            <span className="text-xs font-medium text-slate-400">{item.category}</span>
+            <span className="text-xs font-medium text-slate-400">{formatCategoryName(item.category)}</span>
           </div>
         )}
 
         {/* Badges Overlay */}
         <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 pointer-events-none">
           <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-white/95 text-slate-700 backdrop-blur-xs shadow-xs border border-slate-200/60">
-            {item.category}
+            {formatCategoryName(item.category)}
           </span>
           <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-600 text-white shadow-xs">
-            {item.condition}
+            {formatConditionName(item.condition)}
           </span>
         </div>
 
         {/* Closing Time Badge */}
         <div className="absolute bottom-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-900/85 text-white backdrop-blur-xs shadow-xs">
           <Clock className="w-3.5 h-3.5 text-amber-300" />
-          <span>{item.closingTime}</span>
+          <span>{closingTimeText}</span>
         </div>
       </div>
 
@@ -181,7 +137,7 @@ function AuctionCard({ item }) {
           </h3>
           <p className="mt-1.5 text-xs text-slate-500 flex items-center gap-1 truncate">
             <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-            <span>Pickup: {item.pickupLocation}</span>
+            <span>Seller: {item.sellerName || 'Verified Student'}</span>
           </p>
         </div>
 
@@ -194,10 +150,10 @@ function AuctionCard({ item }) {
               </span>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-xl font-extrabold text-slate-900">
-                  ₹{item.currentPrice.toLocaleString('en-IN')}
+                  ₹{currentPrice.toLocaleString('en-IN')}
                 </span>
                 <span className="text-[11px] text-slate-500 font-medium">
-                  ({item.bidsCount} bids)
+                  ({bidCount} {bidCount === 1 ? 'bid' : 'bids'})
                 </span>
               </div>
             </div>
@@ -208,7 +164,7 @@ function AuctionCard({ item }) {
                 Min. Next Bid
               </span>
               <span className="text-xs font-bold text-indigo-600">
-                ₹{item.minNextBid.toLocaleString('en-IN')}
+                ₹{minNextBid.toLocaleString('en-IN')}
               </span>
             </div>
           </div>
@@ -229,24 +185,106 @@ function AuctionCard({ item }) {
 }
 
 export default function Auctions() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
+  // Filter states initialized from URL params if present
+  const initialCategory = searchParams.get('category') || 'All';
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [selectedCategory, setSelectedCategory] = useState(
+    initialCategory !== 'All'
+      ? initialCategory.charAt(0).toUpperCase() + initialCategory.slice(1).toLowerCase()
+      : 'All'
+  );
   const [selectedCondition, setSelectedCondition] = useState('All');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
-  const [closingSoonOnly, setClosingSoonOnly] = useState(false);
+  const [sortBy, setSortBy] = useState('closingSoon');
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
-  const categories = ['All', 'Cycles', 'Calculators', 'Books', 'Electronics'];
+  // Data states
+  const [auctions, setAuctions] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const categories = ['All', 'Cycle', 'Calculator', 'Books', 'Electronics', 'Other'];
   const conditions = ['All', 'Like New', 'Good', 'Fair'];
+
+  // Fetch listings from backend API
+  const fetchAuctions = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const params = new URLSearchParams();
+      params.append('page', '1');
+      params.append('limit', '30');
+
+      if (sortBy) {
+        params.append('sort', sortBy);
+      }
+
+      if (selectedCategory && selectedCategory !== 'All') {
+        params.append('category', selectedCategory.toLowerCase());
+      }
+
+      if (selectedCondition && selectedCondition !== 'All') {
+        params.append('condition', selectedCondition.toLowerCase().replace(/\s+/g, '_'));
+      }
+
+      const parsedMin = parseInt(minPrice, 10);
+      if (!isNaN(parsedMin) && parsedMin >= 0) {
+        params.append('minPrice', parsedMin.toString());
+      }
+
+      const parsedMax = parseInt(maxPrice, 10);
+      if (!isNaN(parsedMax) && parsedMax >= 0) {
+        params.append('maxPrice', parsedMax.toString());
+      }
+
+      if (searchQuery.trim().length > 0) {
+        params.append('search', searchQuery.trim());
+      }
+
+      const res = await fetch(`${apiBaseUrl}/api/auctions?${params.toString()}`, {
+        credentials: 'include',
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.message || data.error || `HTTP ${res.status}: Failed to load auctions`);
+      }
+
+      setAuctions(Array.isArray(data.auctions) ? data.auctions : []);
+      setTotalCount(data.pagination?.totalResults || (data.auctions ? data.auctions.length : 0));
+    } catch (err) {
+      setErrorMessage(err.message || 'Could not connect to the campus marketplace server.');
+      setAuctions([]);
+      setTotalCount(0);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [apiBaseUrl, selectedCategory, selectedCondition, minPrice, maxPrice, sortBy, searchQuery]);
+
+  // Debounced fetch on filter/search change
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      fetchAuctions();
+    }, 250);
+
+    return () => clearTimeout(handler);
+  }, [fetchAuctions]);
 
   const handleClearFilters = () => {
     setSelectedCategory('All');
     setSelectedCondition('All');
     setMinPrice('');
     setMaxPrice('');
-    setClosingSoonOnly(false);
+    setSortBy('closingSoon');
     setSearchQuery('');
+    setSearchParams({});
   };
 
   return (
@@ -255,18 +293,23 @@ export default function Auctions() {
       <PageHeader
         title="Browse Auctions"
         description="Discover and bid on verified second-hand campus items listed by fellow students. All prices shown in Indian Rupees (₹)."
-        badge={`${SAMPLE_AUCTIONS.length} Active Listings`}
+        badge={isLoading ? 'Loading...' : `${totalCount} Active ${totalCount === 1 ? 'Listing' : 'Listings'}`}
         breadcrumbs={[
           { label: 'Campus Home', href: '/' },
           { label: 'Browse Auctions' },
         ]}
+        action={
+          <Button as={Link} to="/auctions/create" variant="primary" size="sm" icon={PlusCircle}>
+            Create Listing
+          </Button>
+        }
       />
 
-      {/* Demonstration Notice */}
+      {/* Campus Notice */}
       <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-100 flex items-start gap-2.5 text-xs text-indigo-900">
-        <Info className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
+        <Sparkles className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
         <p>
-          <span className="font-semibold">Demonstration Mode:</span> Showing {SAMPLE_AUCTIONS.length} sample active auctions for UI browsing. Filtering and bidding controls are preview-only.
+          <span className="font-semibold">Live Campus Marketplace:</span> Peer-to-peer student exchanges with in-person campus pickup. All prices in Indian Rupees (₹).
         </p>
       </div>
 
@@ -279,9 +322,19 @@ export default function Auctions() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by title, brand, or model (e.g. Hero, Casio, Grewal)..."
+            placeholder="Search by title, description, or model (e.g. Hero, Casio, Grewal)..."
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none transition-colors"
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"
+              aria-label="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Controls: Mobile Filter Toggle & Sort Dropdown */}
@@ -299,17 +352,17 @@ export default function Auctions() {
           </button>
 
           {/* Sort Selection */}
-          <div className="relative min-w-[160px]">
+          <div className="relative min-w-[170px]">
             <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
             <select
-              defaultValue="closing_soon"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
               className="w-full pl-8 pr-7 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none appearance-none"
             >
-              <option value="closing_soon">Closing Soonest</option>
-              <option value="lowest_bid">Price: Low to High</option>
-              <option value="highest_bid">Price: High to Low</option>
-              <option value="most_bids">Most Bids</option>
+              <option value="closingSoon">Closing Soonest</option>
               <option value="newest">Newly Listed</option>
+              <option value="priceLowToHigh">Price: Low to High</option>
+              <option value="priceHighToLow">Price: High to Low</option>
             </select>
           </div>
         </div>
@@ -402,7 +455,7 @@ export default function Auctions() {
           {/* Filter 3: Price Range (₹) */}
           <div className="space-y-2.5 pt-3 border-t border-slate-100">
             <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-              Price Range (₹)
+              Starting Price Range (₹)
             </label>
             <div className="grid grid-cols-2 gap-2">
               <div className="relative">
@@ -410,6 +463,7 @@ export default function Auctions() {
                 <input
                   type="number"
                   placeholder="Min"
+                  min="0"
                   value={minPrice}
                   onChange={(e) => setMinPrice(e.target.value)}
                   className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none"
@@ -420,28 +474,13 @@ export default function Auctions() {
                 <input
                   type="number"
                   placeholder="Max"
+                  min="0"
                   value={maxPrice}
                   onChange={(e) => setMaxPrice(e.target.value)}
                   className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none"
                 />
               </div>
             </div>
-          </div>
-
-          {/* Filter 4: Closing Soon Checkbox */}
-          <div className="pt-3 border-t border-slate-100">
-            <label className="flex items-start gap-2.5 text-xs font-medium text-slate-700 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={closingSoonOnly}
-                onChange={(e) => setClosingSoonOnly(e.target.checked)}
-                className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
-              />
-              <div>
-                <span className="font-semibold text-slate-900 block">Closing Soon</span>
-                <span className="text-[11px] text-slate-400">Ends within 24 hours</span>
-              </div>
-            </label>
           </div>
 
           {/* Clear Filters Action Button */}
@@ -462,19 +501,90 @@ export default function Auctions() {
           {/* Active Results Summary */}
           <div className="flex items-center justify-between text-xs text-slate-500 px-1">
             <span>
-              Showing <strong className="text-slate-800">{SAMPLE_AUCTIONS.length}</strong> campus auction listings
+              {isLoading ? (
+                'Loading active listings...'
+              ) : (
+                <>
+                  Showing <strong className="text-slate-800">{auctions.length}</strong> {auctions.length === 1 ? 'auction' : 'auctions'}
+                </>
+              )}
             </span>
             <span className="hidden sm:inline text-slate-400">
               Campus pickup only · Zero shipping charges
             </span>
           </div>
 
-          {/* 6-8 Sample Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-            {SAMPLE_AUCTIONS.map((auction) => (
-              <AuctionCard key={auction.id} item={auction} />
-            ))}
-          </div>
+          {/* Loading State */}
+          {isLoading && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div
+                  key={i}
+                  className="bg-white rounded-2xl border border-slate-200/80 p-4 space-y-3 animate-pulse"
+                >
+                  <div className="aspect-4/3 w-full bg-slate-100 rounded-xl" />
+                  <div className="h-4 bg-slate-100 rounded-md w-3/4" />
+                  <div className="h-3 bg-slate-100 rounded-md w-1/2" />
+                  <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
+                    <div className="h-5 bg-slate-100 rounded-md w-20" />
+                    <div className="h-8 bg-slate-100 rounded-xl w-24" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Error State */}
+          {!isLoading && errorMessage && (
+            <div className="p-8 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 text-center space-y-3 shadow-xs">
+              <AlertCircle className="w-8 h-8 text-rose-600 mx-auto" />
+              <div className="space-y-1">
+                <h3 className="font-bold text-base text-rose-950">Unable to Load Auctions</h3>
+                <p className="text-xs text-rose-800 max-w-md mx-auto">{errorMessage}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchAuctions}
+                icon={RefreshCw}
+                className="mt-2 bg-white"
+              >
+                Retry
+              </Button>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!isLoading && !errorMessage && auctions.length === 0 && (
+            <div className="p-12 rounded-2xl bg-white border border-slate-200/80 text-center space-y-4 shadow-xs">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
+                <Tag className="w-7 h-7" />
+              </div>
+              <div className="space-y-1 max-w-sm mx-auto">
+                <h3 className="font-bold text-base text-slate-900">No Auctions Found</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  No active listings match your current search or filter criteria. Try clearing some filters or be the first to list an item!
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={handleClearFilters}>
+                  Clear Filters
+                </Button>
+                <Button as={Link} to="/auctions/create" variant="primary" size="sm" icon={PlusCircle}>
+                  Create Auction
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Real Auction Cards Grid */}
+          {!isLoading && !errorMessage && auctions.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+              {auctions.map((auction) => (
+                <AuctionCard key={auction.id} item={auction} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
