@@ -34,11 +34,11 @@ export const searchAuctionsWithAi = async (req, res) => {
       });
     }
 
-    // 2. Extract structured criteria using Google Gemini (with fallback)
+    // 2. Extract structured criteria using Google Gemini (with resilient fallback parser)
     const criteria = await extractSearchCriteriaWithGemini(trimmedMessage);
 
     // 3. Build parameterized SQL query against Neon PostgreSQL
-    // Exclude draft, cancelled, not yet started, or already closed auctions
+    // Strictly exclude draft, cancelled, not yet started, or already closed auctions
     const whereClauses = [
       "a.status = 'active'",
       'a.outcome IS NULL',
@@ -47,10 +47,21 @@ export const searchAuctionsWithAi = async (req, res) => {
     ];
     const params = [];
 
-    // Filter by Category
-    if (criteria.category) {
-      params.push(criteria.category);
-      whereClauses.push(`a.category = $${params.length}`);
+    // Filter by Budget constraint (Maximum Price)
+    // Rule: Apply budget to the current bid price (or starting price if no bids exist)
+    if (criteria.maxPrice !== null && criteria.maxPrice !== undefined) {
+      params.push(criteria.maxPrice);
+      whereClauses.push(
+        `(CASE WHEN a.bid_count > 0 THEN a.current_price ELSE a.starting_price END) <= $${params.length}`
+      );
+    }
+
+    // Filter by Minimum Price
+    if (criteria.minPrice !== null && criteria.minPrice !== undefined) {
+      params.push(criteria.minPrice);
+      whereClauses.push(
+        `(CASE WHEN a.bid_count > 0 THEN a.current_price ELSE a.starting_price END) >= $${params.length}`
+      );
     }
 
     // Filter by Condition
@@ -59,31 +70,37 @@ export const searchAuctionsWithAi = async (req, res) => {
       whereClauses.push(`a.condition = $${params.length}`);
     }
 
-    // Filter by Budget constraint (Maximum Price)
-    // For auctions, current_price is the authoritative live leading bid
-    if (criteria.maxPrice !== null && criteria.maxPrice !== undefined) {
-      params.push(criteria.maxPrice);
-      whereClauses.push(`a.current_price <= $${params.length}`);
-    }
-
-    // Filter by Minimum Price
-    if (criteria.minPrice !== null && criteria.minPrice !== undefined) {
-      params.push(criteria.minPrice);
-      whereClauses.push(`a.current_price >= $${params.length}`);
-    }
-
-    // Match keywords against title or description using case-insensitive ILIKE
+    // Filter by Keyword and/or Category
     if (criteria.keyword) {
-      params.push(`%${criteria.keyword}%`);
-      whereClauses.push(`(a.title ILIKE $${params.length} OR a.description ILIKE $${params.length})`);
+      const kw = criteria.keyword;
+      params.push(`%${kw}%`);
+      const kwIndex = params.length;
+
+      // If category is a specific product category (not generic 'other'), match either category or keyword in title/desc
+      if (criteria.category && criteria.category !== 'other') {
+        params.push(criteria.category);
+        const catIndex = params.length;
+        whereClauses.push(
+          `(a.category = $${catIndex} OR a.title ILIKE $${kwIndex} OR a.description ILIKE $${kwIndex})`
+        );
+      } else {
+        whereClauses.push(
+          `(a.title ILIKE $${kwIndex} OR a.description ILIKE $${kwIndex})`
+        );
+      }
+    } else if (criteria.category) {
+      params.push(criteria.category);
+      whereClauses.push(`a.category = $${params.length}`);
     }
 
     // Determine safe ORDER BY clause from allowlist
     let orderClause = 'ORDER BY a.created_at DESC';
     if (criteria.sortBy === 'price_asc') {
-      orderClause = 'ORDER BY a.current_price ASC, a.ends_at ASC';
+      orderClause =
+        'ORDER BY (CASE WHEN a.bid_count > 0 THEN a.current_price ELSE a.starting_price END) ASC, a.ends_at ASC';
     } else if (criteria.sortBy === 'price_desc') {
-      orderClause = 'ORDER BY a.current_price DESC, a.ends_at ASC';
+      orderClause =
+        'ORDER BY (CASE WHEN a.bid_count > 0 THEN a.current_price ELSE a.starting_price END) DESC, a.ends_at ASC';
     } else if (criteria.sortBy === 'closing_soon' || criteria.closingSoon) {
       orderClause = 'ORDER BY a.ends_at ASC';
     }
@@ -101,6 +118,7 @@ export const searchAuctionsWithAi = async (req, res) => {
         a.starting_price,
         a.min_bid_increment,
         a.current_price,
+        (CASE WHEN a.bid_count > 0 THEN a.current_price ELSE a.starting_price END) AS effective_price,
         a.current_leader_id,
         a.bid_count,
         a.starts_at,
@@ -111,69 +129,10 @@ export const searchAuctionsWithAi = async (req, res) => {
       JOIN users u ON a.seller_id = u.id
       WHERE ${whereClauses.join(' AND ')}
       ${orderClause}
-      LIMIT 10;
+      LIMIT 12;
     `;
 
-    let result = await query(selectQuery, params);
-
-    // If no results matched with a specific keyword filter, try searching without the keyword
-    // if category and price were specified (e.g. user said "Give me a calculator under 400", but title was "Casio FX991")
-    if (result.rows.length === 0 && criteria.keyword && (criteria.category || criteria.maxPrice)) {
-      const relaxedWhere = [
-        "a.status = 'active'",
-        'a.outcome IS NULL',
-        'a.starts_at <= CURRENT_TIMESTAMP',
-        'a.ends_at > CURRENT_TIMESTAMP',
-      ];
-      const relaxedParams = [];
-
-      if (criteria.category) {
-        relaxedParams.push(criteria.category);
-        relaxedWhere.push(`a.category = $${relaxedParams.length}`);
-      }
-      if (criteria.condition) {
-        relaxedParams.push(criteria.condition);
-        relaxedWhere.push(`a.condition = $${relaxedParams.length}`);
-      }
-      if (criteria.maxPrice !== null && criteria.maxPrice !== undefined) {
-        relaxedParams.push(criteria.maxPrice);
-        relaxedWhere.push(`a.current_price <= $${relaxedParams.length}`);
-      }
-      if (criteria.minPrice !== null && criteria.minPrice !== undefined) {
-        relaxedParams.push(criteria.minPrice);
-        relaxedWhere.push(`a.current_price >= $${relaxedParams.length}`);
-      }
-
-      const relaxedSql = `
-        SELECT
-          a.id,
-          a.seller_id,
-          u.display_name AS seller_name,
-          a.title,
-          a.category,
-          a.description,
-          a.condition,
-          a.images,
-          a.starting_price,
-          a.min_bid_increment,
-          a.current_price,
-          a.current_leader_id,
-          a.bid_count,
-          a.starts_at,
-          a.ends_at,
-          a.status,
-          a.created_at
-        FROM auctions a
-        JOIN users u ON a.seller_id = u.id
-        WHERE ${relaxedWhere.join(' AND ')}
-        ${orderClause}
-        LIMIT 10;
-      `;
-      const relaxedResult = await query(relaxedSql, relaxedParams);
-      if (relaxedResult.rows.length > 0) {
-        result = relaxedResult;
-      }
-    }
+    const result = await query(selectQuery, params);
 
     // 4. Format listings for frontend
     const listings = result.rows.map((row) => {
@@ -194,10 +153,11 @@ export const searchAuctionsWithAi = async (req, res) => {
         condition: row.condition,
         coverImage: Array.isArray(resolvedImages) && resolvedImages.length > 0 ? resolvedImages[0] : null,
         images: resolvedImages,
-        startingPrice: row.starting_price,
-        currentPrice: row.current_price,
-        minBidIncrement: row.min_bid_increment,
-        bidCount: row.bid_count,
+        startingPrice: Number(row.starting_price),
+        currentPrice: Number(row.current_price),
+        effectivePrice: Number(row.effective_price),
+        minBidIncrement: Number(row.min_bid_increment),
+        bidCount: Number(row.bid_count),
         startsAt: row.starts_at,
         endsAt: row.ends_at,
         status: row.status,
@@ -210,18 +170,25 @@ export const searchAuctionsWithAi = async (req, res) => {
     const count = listings.length;
 
     if (count > 0) {
-      const categoryLabel = criteria.category ? `${criteria.category} ` : '';
+      const keywordLabel = criteria.keyword ? `"${criteria.keyword}" ` : '';
+      const categoryLabel = criteria.category && criteria.category !== 'other' ? `${criteria.category} ` : '';
+      const targetLabel = keywordLabel || categoryLabel;
       const budgetNote = criteria.maxPrice ? ` within ₹${criteria.maxPrice.toLocaleString('en-IN')}` : '';
-      const sortNote = criteria.sortBy === 'price_asc' ? ' starting with the lowest bid' : criteria.closingSoon ? ' closing soonest' : '';
-      summary = `Found ${count} active campus ${categoryLabel}listing${count === 1 ? '' : 's'}${budgetNote}${sortNote}. Current bids are shown below.`;
+      const sortNote =
+        criteria.sortBy === 'price_asc'
+          ? ' sorted from lowest price'
+          : criteria.closingSoon
+          ? ' closing soonest'
+          : '';
+      summary = `Found ${count} active campus ${targetLabel}listing${count === 1 ? '' : 's'}${budgetNote}${sortNote}. Current bids and starting prices are shown below.`;
     } else {
       const criteriaList = [];
-      if (criteria.category) criteriaList.push(`category "${criteria.category}"`);
-      if (criteria.maxPrice) criteriaList.push(`under ₹${criteria.maxPrice}`);
-      if (criteria.keyword) criteriaList.push(`matching "${criteria.keyword}"`);
+      if (criteria.keyword) criteriaList.push(`keyword "${criteria.keyword}"`);
+      else if (criteria.category) criteriaList.push(`category "${criteria.category}"`);
+      if (criteria.maxPrice) criteriaList.push(`under ₹${criteria.maxPrice.toLocaleString('en-IN')}`);
 
-      const filterDesc = criteriaList.length > 0 ? ` for ${criteriaList.join(', ')}` : '';
-      summary = `No active campus auction listings found${filterDesc}. Check back soon or try searching with a higher budget or different keywords.`;
+      const filterDesc = criteriaList.length > 0 ? ` matching ${criteriaList.join(', ')}` : '';
+      summary = `No active campus auction listings found${filterDesc}. Check back soon or try adjusting your budget.`;
     }
 
     return res.status(200).json({
@@ -239,4 +206,3 @@ export const searchAuctionsWithAi = async (req, res) => {
     });
   }
 };
-

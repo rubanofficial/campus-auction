@@ -357,16 +357,21 @@ export default function AiAssistant() {
                         <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                           <div>
                             <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 block">
-                              Current Bid
+                              {item.bidCount > 0 ? 'Current Bid' : 'Starting Price'}
                             </span>
                             <div className="flex items-baseline gap-1.5">
                               <span className="text-xl font-extrabold text-slate-900">
-                                ₹{currentPrice.toLocaleString('en-IN')}
+                                ₹{(item.bidCount > 0 ? (item.currentPrice || item.startingPrice) : item.startingPrice).toLocaleString('en-IN')}
                               </span>
                               <span className="text-[11px] text-slate-500 font-medium">
                                 ({item.bidCount || 0} {item.bidCount === 1 ? 'bid' : 'bids'})
                               </span>
                             </div>
+                            {item.bidCount > 0 && item.startingPrice && (
+                              <span className="text-[10px] text-slate-400 block">
+                                Starts at ₹{item.startingPrice.toLocaleString('en-IN')}
+                              </span>
+                            )}
                           </div>
 
                           <Button

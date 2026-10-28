@@ -73,7 +73,7 @@ function StatusBadge({ status }) {
 }
 
 // Single activity item row/card component with thumbnail fallback
-function ActivityCard({ item, type }) {
+function ActivityCard({ item, type, onDecisionClick }) {
   const [imageError, setImageError] = useState(!item.imageUrl);
   const FallbackIcon = getCategoryIcon(item.category);
 
@@ -137,6 +137,12 @@ function ActivityCard({ item, type }) {
                 · {item.buyerNote}
               </span>
             )}
+            {item.leaderName && (type === 'listings' || item.canDecide) && (
+              <span className="flex items-center gap-1 text-emerald-700 font-semibold">
+                <UserCheck className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                <span>Winning Bidder: {item.leaderName}</span>
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -176,16 +182,50 @@ function ActivityCard({ item, type }) {
           </div>
         </div>
 
-        {item.actionText && (
-          <Button
-            as={Link}
-            to={item.actionHref || '/auctions'}
-            variant="outline"
-            size="sm"
-            className="text-xs font-semibold"
-          >
-            {item.actionText}
-          </Button>
+        {type === 'listings' && item.canDecide ? (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 sm:pt-0">
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 border-emerald-600 text-white"
+              onClick={() => onDecisionClick && onDecisionClick(item, 'accept')}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+              Accept Winning Bid
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs font-bold text-rose-700 border-rose-300 hover:bg-rose-50"
+              onClick={() => onDecisionClick && onDecisionClick(item, 'reject')}
+            >
+              <XCircle className="w-3.5 h-3.5 mr-1" />
+              Reject Winning Bid
+            </Button>
+            <Button
+              as={Link}
+              to={item.actionHref || `/auctions/${item.id}`}
+              variant="ghost"
+              size="sm"
+              className="text-xs font-semibold text-slate-500"
+            >
+              View
+            </Button>
+          </div>
+        ) : (
+          item.actionText && (
+            <Button
+              as={Link}
+              to={item.actionHref || '/auctions'}
+              variant="outline"
+              size="sm"
+              className="text-xs font-semibold"
+            >
+              {item.actionText}
+            </Button>
+          )
         )}
       </div>
     </div>
@@ -220,6 +260,15 @@ export default function MyActivity() {
   const [activeTab, setActiveTab] = useState('listings');
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [decisionSuccess, setDecisionSuccess] = useState(null);
+  const [decisionModal, setDecisionModal] = useState({
+    isOpen: false,
+    listing: null,
+    action: null,
+  });
+  const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
+  const [decisionError, setDecisionError] = useState(null);
+
   const [activityData, setActivityData] = useState({
     summary: {
       activeListings: 0,
@@ -234,6 +283,73 @@ export default function MyActivity() {
   });
 
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
+  const handleOpenDecision = (listing, action) => {
+    setDecisionModal({
+      isOpen: true,
+      listing,
+      action,
+    });
+    setDecisionError(null);
+    setDecisionSuccess(null);
+  };
+
+  const handleConfirmDecision = async () => {
+    const { listing, action } = decisionModal;
+    if (!listing || !action) return;
+
+    setIsSubmittingDecision(true);
+    setDecisionError(null);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/auctions/${listing.id}/${action}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setDecisionError(data.message || data.error || `Failed to ${action} winning bid.`);
+        setIsSubmittingDecision(false);
+        return;
+      }
+
+      setDecisionSuccess(data.message);
+      setDecisionModal({ isOpen: false, listing: null, action: null });
+
+      // Immediate optimistic update of listing in local state
+      setActivityData((prev) => {
+        const nextListings = prev.listings.map((l) => {
+          if (l.id === listing.id) {
+            return {
+              ...l,
+              status: action === 'accept' ? 'Reserved' : 'Rejected',
+              outcome: action === 'accept' ? 'accepted' : 'rejected',
+              canDecide: false,
+              actionText: 'View Auction',
+            };
+          }
+          return l;
+        });
+
+        return {
+          ...prev,
+          listings: nextListings,
+        };
+      });
+
+      // Synchronize full dashboard state
+      fetchActivity();
+    } catch {
+      setDecisionError('Unable to connect to campus auction server. Please try again.');
+    } finally {
+      setIsSubmittingDecision(false);
+    }
+  };
 
   // Fetch real activity data from backend
   const fetchActivity = useCallback(async () => {
@@ -391,6 +507,14 @@ export default function MyActivity() {
         </div>
       )}
 
+      {/* Decision Success Notification */}
+      {decisionSuccess && (
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-start gap-2.5 text-xs sm:text-sm animate-in fade-in duration-150">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+          <span className="font-semibold">{decisionSuccess}</span>
+        </div>
+      )}
+
       {/* 2. Four Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {summaryCards.map((card) => {
@@ -475,7 +599,12 @@ export default function MyActivity() {
           <div className="space-y-3">
             {currentItems.length > 0 ? (
               currentItems.map((item) => (
-                <ActivityCard key={item.id} item={item} type={activeTab} />
+                <ActivityCard
+                  key={item.id}
+                  item={item}
+                  type={activeTab}
+                  onDecisionClick={handleOpenDecision}
+                />
               ))
             ) : (
               <EmptyState
@@ -488,6 +617,132 @@ export default function MyActivity() {
           </div>
         )}
       </div>
+
+      {/* Seller Decision Confirmation Modal */}
+      {decisionModal.isOpen && decisionModal.listing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                {decisionModal.action === 'accept' ? (
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center">
+                    <XCircle className="w-5 h-5" />
+                  </div>
+                )}
+                <h3 className="font-bold text-slate-900 text-base">
+                  {decisionModal.action === 'accept' ? 'Accept Winning Bid?' : 'Reject Winning Bid?'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isSubmittingDecision && setDecisionModal({ isOpen: false, listing: null, action: null })}
+                disabled={isSubmittingDecision}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs sm:text-sm text-slate-600">
+              <p>
+                {decisionModal.action === 'accept' ? (
+                  <>
+                    Are you sure you want to accept the winning bid of{' '}
+                    <strong className="text-slate-900 font-bold">
+                      ₹{Number(decisionModal.listing.currentPrice || 0).toLocaleString('en-IN')}
+                    </strong>{' '}
+                    from{' '}
+                    <strong className="text-slate-900 font-bold">
+                      {decisionModal.listing.leaderName || 'the winning bidder'}
+                    </strong>{' '}
+                    for "{decisionModal.listing.title}"?
+                  </>
+                ) : (
+                  <>
+                    Are you sure you want to decline the winning bid of{' '}
+                    <strong className="text-slate-900 font-bold">
+                      ₹{Number(decisionModal.listing.currentPrice || 0).toLocaleString('en-IN')}
+                    </strong>{' '}
+                    from{' '}
+                    <strong className="text-slate-900 font-bold">
+                      {decisionModal.listing.leaderName || 'the winning bidder'}
+                    </strong>{' '}
+                    for "{decisionModal.listing.title}"?
+                  </>
+                )}
+              </p>
+
+              <div
+                className={`p-3 rounded-xl border text-xs leading-relaxed ${
+                  decisionModal.action === 'accept'
+                    ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                    : 'bg-rose-50/80 border-rose-200 text-rose-900'
+                }`}
+              >
+                {decisionModal.action === 'accept' ? (
+                  <span>
+                    Accepting will mark this listing as <strong>Reserved</strong> awaiting physical campus handover.
+                  </span>
+                ) : (
+                  <span>
+                    Rejecting will decline this bid and close the auction without a completed sale.
+                  </span>
+                )}
+              </div>
+
+              {decisionError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                  <p className="font-semibold leading-relaxed">{decisionError}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isSubmittingDecision}
+                onClick={() => setDecisionModal({ isOpen: false, listing: null, action: null })}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={isSubmittingDecision}
+                className={
+                  decisionModal.action === 'accept'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 border-emerald-600 text-white font-bold'
+                    : 'bg-rose-600 hover:bg-rose-700 border-rose-600 text-white font-bold'
+                }
+                onClick={handleConfirmDecision}
+              >
+                {isSubmittingDecision ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                    Processing...
+                  </>
+                ) : decisionModal.action === 'accept' ? (
+                  'Confirm Accept'
+                ) : (
+                  'Confirm Reject'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
