@@ -259,28 +259,82 @@ export default function AuctionDetails() {
 
     // Handle real-time accepted bid update from other student bidders
     const onBidUpdated = (payload) => {
-      if (!payload || payload.auctionId !== id) return;
+      if (!payload) return;
+      const eventAuctionId =
+        payload.auctionId ||
+        payload.auction_id ||
+        payload.auction?.id ||
+        payload.bid?.auctionId ||
+        payload.bid?.auction_id;
+      if (!eventAuctionId || eventAuctionId !== id) return;
+
+      const newPrice = Number(
+        payload.currentPrice ??
+        payload.current_price ??
+        payload.auction?.currentPrice ??
+        payload.auction?.current_price ??
+        payload.bid?.amount
+      );
+      const newBidCount = Number(
+        payload.bidCount ??
+        payload.bid_count ??
+        payload.auction?.bidCount ??
+        payload.auction?.bid_count
+      );
+      const newLeaderId =
+        payload.currentLeaderId ||
+        payload.current_leader_id ||
+        payload.auction?.currentLeaderId ||
+        payload.auction?.current_leader_id ||
+        payload.bid?.bidderId ||
+        payload.bid?.bidder_id;
+      const newLeaderName =
+        payload.currentLeaderName ||
+        payload.current_leader_name ||
+        payload.auction?.currentLeaderName ||
+        payload.auction?.current_leader_name ||
+        payload.bid?.bidderName ||
+        payload.bid?.bidder_name;
 
       // Update current price, leader, and count atomically
-      if (payload.auction) {
-        setAuction((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            currentPrice: payload.auction.currentPrice ?? payload.bid?.amount ?? prev.currentPrice,
-            bidCount: payload.auction.bidCount ?? prev.bidCount + 1,
-            currentLeaderId: payload.auction.currentLeaderId ?? prev.currentLeaderId,
-            currentLeaderName: payload.auction.currentLeaderName ?? payload.bid?.bidderName ?? prev.currentLeaderName,
-          };
-        });
-      }
+      setAuction((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          currentPrice: !isNaN(newPrice) ? newPrice : prev.currentPrice,
+          current_price: !isNaN(newPrice) ? newPrice : prev.current_price,
+          bidCount: !isNaN(newBidCount) ? newBidCount : (prev.bidCount || prev.bid_count || 0) + 1,
+          bid_count: !isNaN(newBidCount) ? newBidCount : (prev.bidCount || prev.bid_count || 0) + 1,
+          currentLeaderId: newLeaderId || prev.currentLeaderId || prev.current_leader_id,
+          current_leader_id: newLeaderId || prev.currentLeaderId || prev.current_leader_id,
+          currentLeaderName: newLeaderName || prev.currentLeaderName || prev.current_leader_name,
+          current_leader_name: newLeaderName || prev.currentLeaderName || prev.current_leader_name,
+        };
+      });
 
       // Prepend bid record to history if not already present (prevents duplicates from HTTP response)
-      if (payload.bid && payload.bid.id) {
+      const bidObj = payload.bid;
+      if (bidObj && (bidObj.id || bidObj.amount)) {
         setBids((prev) => {
-          const exists = prev.some((b) => b.id === payload.bid.id);
+          const exists = prev.some(
+            (b) =>
+              (bidObj.id && b.id === bidObj.id) ||
+              (Number(b.amount) === Number(bidObj.amount) && b.createdAt === (bidObj.createdAt || bidObj.created_at))
+          );
           if (exists) return prev;
-          return [payload.bid, ...prev];
+          const normalizedBid = {
+            id: bidObj.id || `bid-${Date.now()}-${Math.random()}`,
+            auctionId: id,
+            auction_id: id,
+            bidderId: bidObj.bidderId || bidObj.bidder_id || newLeaderId,
+            bidder_id: bidObj.bidderId || bidObj.bidder_id || newLeaderId,
+            bidderName: bidObj.bidderName || bidObj.bidder_name || newLeaderName || 'Verified Student',
+            bidder_name: bidObj.bidderName || bidObj.bidder_name || newLeaderName || 'Verified Student',
+            amount: Number(bidObj.amount),
+            createdAt: bidObj.createdAt || bidObj.created_at || new Date().toISOString(),
+            created_at: bidObj.createdAt || bidObj.created_at || new Date().toISOString(),
+          };
+          return [normalizedBid, ...prev];
         });
       }
 
@@ -292,7 +346,8 @@ export default function AuctionDetails() {
 
     // Handle real-time seller decision update
     const onDecisionUpdated = (payload) => {
-      if (!payload || payload.auctionId !== id) return;
+      const eventAuctionId = payload?.auctionId || payload?.auction_id;
+      if (!eventAuctionId || eventAuctionId !== id) return;
       refreshAuctionData();
     };
 

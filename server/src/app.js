@@ -23,11 +23,22 @@ if (isProduction) {
 // Security headers with Helmet
 app.use(helmet());
 
-// CORS configuration supporting credentials from allowed client origin
+// CORS configuration supporting credentials from allowed client origins
 const clientOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
 app.use(
   cors({
-    origin: clientOrigin,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (
+        origin === clientOrigin ||
+        origin === 'http://localhost:5173' ||
+        origin === 'http://127.0.0.1:5173' ||
+        /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS not allowed for origin: ${origin}`));
+    },
     credentials: true,
   })
 );
