@@ -259,8 +259,7 @@ export default function Home() {
             <span>Campus-Exclusive Bidding & Trading</span>
             <span className="text-indigo-400">·</span>
             <span className="flex items-center gap-1 text-emerald-300">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Verified .edu Only
+
             </span>
           </div>
 
