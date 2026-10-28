@@ -216,9 +216,8 @@ export const loginStudent = async (req, res) => {
 export const getCurrentUser = async (req, res) => {
   try {
     if (!req.session || !req.session.userId) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Not authenticated.',
+      return res.status(200).json({
+        user: null,
       });
     }
 
@@ -230,8 +229,8 @@ export const getCurrentUser = async (req, res) => {
 
     if (!user) {
       req.session.destroy(() => {});
-      return res.status(401).json({
-        error: 'Unauthorized',
+      return res.status(200).json({
+        user: null,
         message: 'User session invalid. Please sign in again.',
       });
     }
