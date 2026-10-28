@@ -1,4 +1,5 @@
 import { getPool, query } from '../config/database.js';
+import { broadcastBidUpdate } from '../config/socket.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_POSTGRES_INTEGER = 2147483647;
@@ -207,6 +208,27 @@ export const placeBid = async (req, res) => {
 
     // 12. Commit transaction
     await client.query('COMMIT');
+
+    // 13. Broadcast real-time accepted bid update to all viewers in this auction room
+    broadcastBidUpdate(id, {
+      auctionId: id,
+      bid: {
+        id: createdBid.id,
+        auctionId: createdBid.auction_id,
+        bidderId: createdBid.bidder_id,
+        bidderName: bidderName,
+        amount: createdBid.amount,
+        createdAt: createdBid.created_at,
+      },
+      auction: {
+        id: updatedAuction.id,
+        currentPrice: updatedAuction.current_price,
+        currentLeaderId: updatedAuction.current_leader_id,
+        currentLeaderName: bidderName,
+        bidCount: updatedAuction.bid_count,
+        updatedAt: updatedAuction.updated_at,
+      },
+    });
 
     return res.status(201).json({
       message: 'Bid placed successfully.',

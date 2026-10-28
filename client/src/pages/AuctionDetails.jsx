@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Clock,
@@ -21,10 +21,12 @@ import {
   Loader2,
   Lock,
   UserCheck,
+  Radio,
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
+import { getSocket } from '../utils/socket';
 
 // Category fallback icon mapping
 const getCategoryIcon = (category) => {
@@ -107,8 +109,30 @@ export default function AuctionDetails() {
   const [isPlacingBid, setIsPlacingBid] = useState(false);
   const [bidError, setBidError] = useState(null);
   const [bidSuccess, setBidSuccess] = useState(null);
+  const [isLiveConnected, setIsLiveConnected] = useState(false);
 
-  // Fetch auction details and bid history
+  // Refresh auction and bid data from authoritative HTTP APIs
+  const refreshAuctionData = useCallback(async () => {
+    try {
+      const [resAuction, resBids] = await Promise.all([
+        fetch(`${apiBaseUrl}/api/auctions/${id}`, { credentials: 'include' }),
+        fetch(`${apiBaseUrl}/api/auctions/${id}/bids`, { credentials: 'include' }),
+      ]);
+
+      if (resAuction.ok) {
+        const dataA = await resAuction.json();
+        if (dataA.auction) setAuction(dataA.auction);
+      }
+      if (resBids.ok) {
+        const dataB = await resBids.json();
+        if (Array.isArray(dataB.bids)) setBids(dataB.bids);
+      }
+    } catch (e) {
+      console.warn('[AuctionDetails] Failed to refresh auction data:', e.message);
+    }
+  }, [id, apiBaseUrl]);
+
+  // Fetch auction details and bid history on mount or route change
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
@@ -160,6 +184,71 @@ export default function AuctionDetails() {
       isMounted = false;
     };
   }, [id, apiBaseUrl]);
+
+  // Real-time Socket.IO room lifecycle and live bid listener
+  useEffect(() => {
+    if (!id) return;
+
+    const socket = getSocket();
+
+    setIsLiveConnected(socket.connected);
+
+    const onConnect = () => {
+      setIsLiveConnected(true);
+      // Join auction room on connect/reconnect
+      socket.emit('auction:join', { auctionId: id });
+      // Re-synchronize data on reconnect in case events were missed during network disruption
+      refreshAuctionData();
+    };
+
+    const onDisconnect = () => {
+      setIsLiveConnected(false);
+    };
+
+    if (socket.connected) {
+      socket.emit('auction:join', { auctionId: id });
+    }
+
+    // Handle real-time accepted bid update from other student bidders
+    const onBidUpdated = (payload) => {
+      if (!payload || payload.auctionId !== id) return;
+
+      // Update current price, leader, and count atomically
+      if (payload.auction) {
+        setAuction((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            currentPrice: payload.auction.currentPrice ?? payload.bid?.amount ?? prev.currentPrice,
+            bidCount: payload.auction.bidCount ?? prev.bidCount + 1,
+            currentLeaderId: payload.auction.currentLeaderId ?? prev.currentLeaderId,
+            currentLeaderName: payload.auction.currentLeaderName ?? payload.bid?.bidderName ?? prev.currentLeaderName,
+          };
+        });
+      }
+
+      // Prepend bid record to history if not already present (prevents duplicates from HTTP response)
+      if (payload.bid && payload.bid.id) {
+        setBids((prev) => {
+          const exists = prev.some((b) => b.id === payload.bid.id);
+          if (exists) return prev;
+          return [payload.bid, ...prev];
+        });
+      }
+    };
+
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    socket.on('auction:bid-updated', onBidUpdated);
+
+    return () => {
+      // Leave room and detach listeners when unmounting or switching auctions
+      socket.emit('auction:leave', { auctionId: id });
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.off('auction:bid-updated', onBidUpdated);
+    };
+  }, [id, refreshAuctionData]);
 
   // Live countdown timer ticker
   useEffect(() => {
@@ -519,9 +608,17 @@ export default function AuctionDetails() {
           <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-md space-y-5">
             {/* Countdown Timer Display */}
             <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-100 text-center space-y-2">
-              <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-indigo-700 uppercase tracking-wider">
-                <Clock className="w-4 h-4 text-indigo-600" />
-                {timeLeft.isEnded ? 'Auction Ended' : 'Time Remaining'}
+              <div className="flex items-center justify-between text-xs font-bold text-indigo-700 uppercase tracking-wider px-1">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-indigo-600" />
+                  <span>{timeLeft.isEnded ? 'Auction Ended' : 'Time Remaining'}</span>
+                </div>
+                {isLiveConnected && !timeLeft.isEnded && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 normal-case bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Live Bidding
+                  </span>
+                )}
               </div>
               <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
                 <div className="p-2.5 rounded-lg bg-white border border-indigo-100 shadow-2xs">
